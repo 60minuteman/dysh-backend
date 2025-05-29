@@ -1,0 +1,421 @@
+---
+title: 'Development Setup'
+description: 'Complete guide to setting up the Dysh API for local development'
+---
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+<AccordionGroup>
+  <Accordion icon="node-js" title="Node.js & Yarn">
+    - **Node.js**: Version 18.x or higher
+    - **Yarn**: Version 3.x (modern Yarn)
+    
+    ```bash
+    # Check versions
+    node --version  # Should be 18.x+
+    yarn --version  # Should be 3.x+
+    ```
+  </Accordion>
+
+  <Accordion icon="database" title="PostgreSQL">
+    - **PostgreSQL**: Version 15 or higher
+    - **Docker** (recommended): For easy database setup
+    
+    ```bash
+    # Using Docker (recommended)
+    docker run --name dysh-postgres \
+      -e POSTGRES_PASSWORD=password \
+      -e POSTGRES_DB=dysh_db \
+      -p 5432:5432 \
+      -d postgres:15-alpine
+    ```
+  </Accordion>
+
+  <Accordion icon="key" title="API Keys">
+    You'll need API keys from various providers:
+    
+    - **Apple Developer Account**: For Apple Sign-In
+    - **Google Cloud Console**: For Google Sign-In  
+    - **Google AI Studio**: For Gemini API
+    - **DeepSeek**: For fallback AI provider (optional)
+  </Accordion>
+</AccordionGroup>
+
+## Project Setup
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/dysh-app/dysh-backend
+    cd dysh-backend
+    ```
+  </Step>
+
+  <Step title="Install dependencies">
+    ```bash
+    yarn install
+    ```
+  </Step>
+
+  <Step title="Environment configuration">
+    Create a `.env` file in the project root:
+    
+    ```bash
+    cp .env.example .env
+    ```
+    
+    Update the `.env` file with your credentials:
+    
+    ```bash
+    # Database Configuration
+    DATABASE_URL="postgresql://postgres:password@localhost:5432/dysh_db?schema=public"
+    
+    # AI Provider Keys
+    GEMINI_API_KEY="AIzaSyDsKEEDirE1Y3QLkEZQ66-D-SFgvER-blA"
+    DEEPSEEK_API_KEY="sk-2ea341351b1841e2a3393bba90a98079"
+    
+    # JWT Configuration
+    JWT_SECRET="dysh-backend-secret-key"
+    JWT_REFRESH_SECRET="dysh-refresh-secret"
+    
+    # Apple Sign-In Configuration
+    APPLE_TEAM_ID="4XFX49S6T4"
+    APPLE_KEY_ID="D39Y9V9SAF"
+    APPLE_BUNDLE_ID="com.dysh.app"
+    APPLE_SERVICE_ID="com.melfi.dysh.service"
+    APPLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
+    MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg...
+    -----END PRIVATE KEY-----"
+    
+    # Google Sign-In Configuration
+    GOOGLE_CLIENT_ID="your_google_client_id.apps.googleusercontent.com"
+    
+    # Environment
+    NODE_ENV="development"
+    ```
+  </Step>
+
+  <Step title="Database setup">
+    Initialize the database schema:
+    
+    ```bash
+    # Generate Prisma client
+    yarn prisma generate
+    
+    # Push schema to database
+    yarn prisma db push
+    
+    # (Optional) Seed with test data
+    yarn prisma db seed
+    ```
+  </Step>
+
+  <Step title="Start development server">
+    ```bash
+    yarn start:dev
+    ```
+    
+    The API will be available at:
+    - **API**: http://localhost:3000
+    - **Swagger Docs**: http://localhost:3000/api/docs
+  </Step>
+</Steps>
+
+## Development Workflow
+
+### Database Management
+
+<CodeGroup>
+
+```bash Prisma Commands
+# View database in browser
+yarn prisma studio
+
+# Reset database (careful!)
+yarn prisma db reset
+
+# Generate new migration
+yarn prisma migrate dev --name your_migration_name
+
+# Deploy migrations to production
+yarn prisma migrate deploy
+```
+
+```bash Docker Database
+# Start PostgreSQL container
+docker-compose -f docker-compose.dev.yml up -d
+
+# Stop database
+docker-compose -f docker-compose.dev.yml down
+
+# View logs
+docker-compose -f docker-compose.dev.yml logs postgres
+```
+
+</CodeGroup>
+
+### Testing
+
+<CodeGroup>
+
+```bash Unit Tests
+# Run all tests
+yarn test
+
+# Run tests in watch mode
+yarn test:watch
+
+# Run tests with coverage
+yarn test:cov
+```
+
+```bash Integration Tests
+# Test authentication flow
+node test-auth.js
+
+# Test enhanced recipe generation
+node test-enhanced-recipes.js
+
+# Quick CURL test
+./test-enhanced-recipes.sh
+```
+
+</CodeGroup>
+
+### Code Quality
+
+<CodeGroup>
+
+```bash Linting & Formatting
+# Run ESLint
+yarn lint
+
+# Fix linting issues
+yarn lint:fix
+
+# Format code with Prettier
+yarn format
+```
+
+```bash Type Checking
+# Run TypeScript compiler
+yarn build
+
+# Type check without building
+yarn type-check
+```
+
+</CodeGroup>
+
+## API Provider Setup
+
+### Apple Sign-In Configuration
+
+<Steps>
+  <Step title="Apple Developer Account">
+    1. Sign up for an Apple Developer account
+    2. Create an App ID for your application
+    3. Enable "Sign In with Apple" capability
+  </Step>
+
+  <Step title="Service ID Configuration">
+    1. Create a Services ID in Apple Developer portal
+    2. Configure the domain and return URLs
+    3. Associate with your App ID
+  </Step>
+
+  <Step title="Private Key Generation">
+    1. Create a new key in "Keys" section
+    2. Enable "Sign In with Apple" 
+    3. Download the .p8 private key file
+    4. Convert to PEM format for the environment variable
+  </Step>
+</Steps>
+
+### Google Sign-In Configuration
+
+<Steps>
+  <Step title="Google Cloud Project">
+    1. Create a new project in Google Cloud Console
+    2. Enable the Google Sign-In API
+    3. Configure OAuth consent screen
+  </Step>
+
+  <Step title="OAuth Credentials">
+    1. Create OAuth 2.0 client credentials
+    2. Add authorized origins and redirect URIs
+    3. Download the client configuration
+  </Step>
+
+  <Step title="Mobile App Configuration">
+    1. Create separate credentials for iOS and Android
+    2. Add package names and SHA-1 fingerprints
+    3. Configure deep linking for mobile apps
+  </Step>
+</Steps>
+
+### AI Provider Setup
+
+<AccordionGroup>
+  <Accordion title="Google Gemini API">
+    1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+    2. Create a new API key
+    3. Set usage quotas and billing (if needed)
+    4. Add the key to your `.env` file as `GEMINI_API_KEY`
+  </Accordion>
+
+  <Accordion title="DeepSeek API (Optional)">
+    1. Sign up at [DeepSeek Platform](https://platform.deepseek.com/)
+    2. Generate an API key in your dashboard
+    3. Add credits to your account for usage
+    4. Add the key to your `.env` file as `DEEPSEEK_API_KEY`
+  </Accordion>
+</AccordionGroup>
+
+## Project Structure
+
+```
+dysh-backend/
+├── src/
+│   ├── auth/                 # Authentication modules
+│   │   ├── strategies/       # Passport strategies
+│   │   ├── guards/          # Auth guards
+│   │   └── dto/             # Auth DTOs
+│   ├── user/                # User management
+│   │   ├── dto/             # User DTOs
+│   │   └── entities/        # User entities
+│   ├── recipes/             # Recipe generation
+│   │   ├── dto/             # Recipe DTOs
+│   │   └── services/        # Recipe services
+│   ├── prisma/              # Database service
+│   └── common/              # Shared utilities
+├── prisma/
+│   ├── schema.prisma        # Database schema
+│   └── migrations/          # Database migrations
+├── docs/                    # Mintlify documentation
+├── test/                    # Test files
+└── docker-compose.*.yml     # Docker configurations
+```
+
+## Environment Variables Reference
+
+<ParamField path="DATABASE_URL" type="string" required>
+  PostgreSQL connection string with schema parameter
+</ParamField>
+
+<ParamField path="GEMINI_API_KEY" type="string" required>
+  Google Gemini API key for primary AI recipe generation
+</ParamField>
+
+<ParamField path="DEEPSEEK_API_KEY" type="string" optional>
+  DeepSeek API key for fallback AI recipe generation
+</ParamField>
+
+<ParamField path="JWT_SECRET" type="string" required>
+  Secret key for signing JWT access tokens (15-minute expiry)
+</ParamField>
+
+<ParamField path="JWT_REFRESH_SECRET" type="string" required>
+  Secret key for signing JWT refresh tokens (7-day expiry)
+</ParamField>
+
+<ParamField path="APPLE_TEAM_ID" type="string" required>
+  Apple Developer Team ID (10 characters)
+</ParamField>
+
+<ParamField path="APPLE_KEY_ID" type="string" required>
+  Apple Sign-In Key ID (10 characters)
+</ParamField>
+
+<ParamField path="APPLE_BUNDLE_ID" type="string" required>
+  iOS app bundle identifier (e.g., com.dysh.app)
+</ParamField>
+
+<ParamField path="APPLE_PRIVATE_KEY" type="string" required>
+  Apple Sign-In private key in PEM format (multi-line)
+</ParamField>
+
+<ParamField path="GOOGLE_CLIENT_ID" type="string" required>
+  Google OAuth 2.0 client ID for Android app
+</ParamField>
+
+<ParamField path="NODE_ENV" type="string" optional>
+  Environment mode: "development", "production", or "test"
+</ParamField>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Database Connection Issues">
+    **Problem**: Cannot connect to PostgreSQL
+    
+    **Solutions**:
+    - Verify PostgreSQL is running: `docker ps` or `pg_isready`
+    - Check DATABASE_URL format and credentials
+    - Ensure database exists: `createdb dysh_db`
+    - Check firewall and port 5432 accessibility
+  </Accordion>
+
+  <Accordion title="Apple Sign-In Errors">
+    **Problem**: "Invalid client" or token verification fails
+    
+    **Solutions**:
+    - Verify APPLE_BUNDLE_ID matches your app configuration
+    - Check APPLE_PRIVATE_KEY format (should include BEGIN/END lines)
+    - Ensure Service ID is properly configured with correct domains
+    - Verify Team ID and Key ID are correct
+  </Accordion>
+
+  <Accordion title="AI Provider Failures">
+    **Problem**: Recipe generation fails with API errors
+    
+    **Solutions**:
+    - Check API key validity and quotas
+    - Verify billing is set up for Gemini API
+    - Check DeepSeek account balance
+    - Review rate limiting and usage patterns
+  </Accordion>
+
+  <Accordion title="JWT Token Issues">
+    **Problem**: Authentication fails or tokens expire quickly
+    
+    **Solutions**:
+    - Verify JWT_SECRET and JWT_REFRESH_SECRET are set
+    - Check token expiry times in auth service
+    - Ensure client is sending tokens in Authorization header
+    - Verify token format: "Bearer <token>"
+  </Accordion>
+</AccordionGroup>
+
+## Performance Optimization
+
+### Database Optimization
+
+- **Connection Pooling**: Prisma automatically manages connection pools
+- **Query Optimization**: Use `include` and `select` to fetch only needed data
+- **Indexing**: Add database indexes for frequently queried fields
+
+### API Performance
+
+- **Caching**: Implement Redis for user session and recipe caching
+- **Rate Limiting**: Configure appropriate limits for different endpoints
+- **Response Compression**: Enable gzip compression for large responses
+
+### AI Provider Optimization
+
+- **Request Batching**: Combine multiple recipe requests when possible
+- **Prompt Optimization**: Refine prompts for faster AI response times
+- **Fallback Strategy**: Implement smart fallback between AI providers
+
+## Deployment
+
+<CardGroup cols={2}>
+  <Card title="🐳 Docker Deployment" href="/deployment/docker">
+    Deploy using Docker containers with production configurations
+  </Card>
+  <Card title="☁️ Cloud Deployment" href="/deployment/cloud">
+    Deploy to AWS, Google Cloud, or Azure with managed services
+  </Card>
+</CardGroup> 

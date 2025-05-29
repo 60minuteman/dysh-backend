@@ -1,0 +1,159 @@
+---
+title: Introduction
+description: 'Welcome to the Dysh API - AI-powered personalized recipe generation'
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/hero-light.png"
+  alt="Hero Light"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/hero-dark.png"
+  alt="Hero Dark"
+/>
+
+## Welcome to Dysh API
+
+Dysh is an AI-powered recipe generation platform that creates personalized, location-based meals tailored to your dietary preferences and cooking style. Our API enables developers to integrate intelligent recipe generation into their applications.
+
+## What makes Dysh special?
+
+<CardGroup cols={2}>
+  <Card
+    title="🤖 AI-Powered Generation"
+    icon="robot"
+    href="/recipes/overview"
+  >
+    Advanced AI models (Gemini & DeepSeek) create unique, personalized recipes based on your ingredients and preferences.
+  </Card>
+  <Card
+    title="🌍 Location-Based Cuisine"
+    icon="globe"
+    href="/recipes/location-based"
+  >
+    Generate recipes in authentic cuisine styles from 20+ countries, or use your user's location for automatic cuisine selection.
+  </Card>
+  <Card
+    title="🥗 Dietary Intelligence"
+    icon="leaf"
+    href="/recipes/dietary-preferences"
+  >
+    Full support for vegetarian, vegan, pescatarian, gluten-free, and ketogenic diets with automatic ingredient substitutions.
+  </Card>
+  <Card
+    title="📱 Mobile-First Authentication"
+    icon="mobile"
+    href="/authentication/overview"
+  >
+    Seamless Apple Sign-In for iOS and Google Sign-In for Android with JWT token management.
+  </Card>
+</CardGroup>
+
+## Key Features
+
+### 🍽️ Multi-Meal Generation
+Each API call generates **3 different meals** with structured data including:
+- Meal names and cooking times
+- Calorie information and ratings
+- Detailed ingredient lists with measurements
+- Step-by-step cooking instructions
+- Professional cooking tips and tricks
+
+### 🎯 Personalization Engine
+- **User Profiles**: Dietary preferences, serving sizes, location data
+- **Smart Onboarding**: Comprehensive user preference collection
+- **Ingredient Intelligence**: AI converts ingredients to match dietary restrictions
+- **Serving Scaling**: Recipes automatically scaled for 2, 4, or 6 people
+
+### 🔐 Enterprise-Ready Security
+- JWT-based authentication with refresh tokens
+- Apple and Google OAuth integration
+- User data protection and privacy compliance
+- Rate limiting and API key management
+
+## Getting Started
+
+<CardGroup cols={2}>
+  <Card
+    title="🚀 Quick Start"
+    icon="play"
+    href="/quickstart"
+  >
+    Get up and running with the Dysh API in under 5 minutes.
+  </Card>
+  <Card
+    title="📖 API Reference"
+    icon="code"
+    href="/api-reference/introduction"
+  >
+    Explore our comprehensive API documentation with interactive examples.
+  </Card>
+</CardGroup>
+
+## Example Response
+
+Here's what a typical recipe generation response looks like:
+
+```json
+{
+  "meals": [
+    {
+      "name": "Spaghetti al Pomodoro e Basilico",
+      "estimatedCookTime": "25 minutes",
+      "calories": "450 calories per serving",
+      "rating": 4.6,
+      "ingredients": [
+        "400g spaghetti",
+        "800g ripe tomatoes, peeled and chopped",
+        "4 cloves garlic, minced",
+        "1/2 cup fresh basil leaves, chopped",
+        "1/4 cup extra virgin olive oil",
+        "100g Parmesan cheese, grated"
+      ],
+      "instructions": [
+        "Cook spaghetti according to package directions until al dente",
+        "Heat olive oil in large pan, add garlic and cook until fragrant",
+        "Add tomatoes and simmer for 15 minutes",
+        "Toss pasta with sauce, add basil and parmesan",
+        "Serve immediately with extra cheese"
+      ],
+      "proTips": [
+        "Use San Marzano tomatoes for authentic Italian flavor",
+        "Save pasta water to adjust sauce consistency",
+        "Add basil at the end to preserve its fresh flavor"
+      ]
+    }
+    // ... 2 more meals
+  ],
+  "location": "Italy",
+  "provider": "gemini"
+}
+```
+
+## Support & Community
+
+<CardGroup cols={3}>
+  <Card
+    title="📧 Email Support"
+    icon="envelope"
+    href="mailto:support@dysh.app"
+  >
+    Get help from our support team
+  </Card>
+  <Card
+    title="💬 Discord Community"
+    icon="discord"
+    href="https://discord.gg/dysh"
+  >
+    Join our developer community
+  </Card>
+  <Card
+    title="📚 GitHub"
+    icon="github"
+    href="https://github.com/dysh-app"
+  >
+    Explore our open source projects
+  </Card>
+</CardGroup> 

@@ -1,0 +1,226 @@
+---
+title: 'Quickstart'
+description: 'Start building with the Dysh API in under 5 minutes'
+---
+
+## Setup your development environment
+
+Learn how to integrate Dysh's AI-powered recipe generation into your application in just a few steps.
+
+<AccordionGroup>
+  <Accordion icon="github" title="Clone the repository">
+    Start by cloning our example repository or setting up your own project:
+    ```bash
+    git clone https://github.com/dysh-app/dysh-backend
+    cd dysh-backend
+    yarn install
+    ```
+  </Accordion>
+
+  <Accordion icon="key" title="Get your API credentials">
+    You'll need to set up authentication providers:
+    
+    **Apple Sign-In Setup:**
+    1. Create an Apple Developer account
+    2. Configure your App ID and Service ID
+    3. Generate a private key for server-to-server communication
+    
+    **Google Sign-In Setup:**
+    1. Create a Google Cloud project
+    2. Enable Google Sign-In API
+    3. Create OAuth 2.0 credentials
+    
+    **AI Provider Keys:**
+    - Get a Gemini API key from Google AI Studio
+    - Get a DeepSeek API key (optional fallback)
+  </Accordion>
+
+  <Accordion icon="gear" title="Configure environment variables">
+    Create a `.env` file with your credentials:
+    ```bash
+    # Database
+    DATABASE_URL="postgresql://postgres:password@localhost:5432/dysh_db"
+    
+    # AI Providers
+    GEMINI_API_KEY="your_gemini_api_key"
+    DEEPSEEK_API_KEY="your_deepseek_api_key"
+    
+    # JWT Secrets
+    JWT_SECRET="your_jwt_secret"
+    JWT_REFRESH_SECRET="your_refresh_secret"
+    
+    # Apple Sign-In
+    APPLE_TEAM_ID="your_team_id"
+    APPLE_KEY_ID="your_key_id"
+    APPLE_BUNDLE_ID="com.yourapp.bundle"
+    APPLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----..."
+    
+    # Google Sign-In
+    GOOGLE_CLIENT_ID="your_google_client_id"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Make your first API call
+
+<Steps>
+  <Step title="Start the development server">
+    ```bash
+    yarn start:dev
+    ```
+    Your API will be available at `http://localhost:3000`
+  </Step>
+
+  <Step title="Authenticate a user">
+    First, authenticate with Apple or Google Sign-In:
+    
+    ```javascript
+    const authResponse = await fetch('http://localhost:3000/auth/apple', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        identityToken: 'your_apple_identity_token',
+        email: null,
+        fullName: ''
+      })
+    });
+    
+    const { tokens } = await authResponse.json();
+    const accessToken = tokens.accessToken;
+    ```
+  </Step>
+
+  <Step title="Generate personalized recipes">
+    Use the access token to generate recipes:
+    
+    ```javascript
+    const recipeResponse = await fetch('http://localhost:3000/recipes/generate', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ingredients: ['chicken', 'rice', 'vegetables', 'garlic'],
+        country: 'Italy' // Optional: override user's location
+      })
+    });
+    
+    const { meals, location, provider } = await recipeResponse.json();
+    
+    // You now have 3 personalized meals!
+    console.log(`Generated ${meals.length} ${location} meals using ${provider}`);
+    meals.forEach((meal, index) => {
+      console.log(`${index + 1}. ${meal.name} (${meal.estimatedCookTime})`);
+    });
+    ```
+  </Step>
+</Steps>
+
+## Example Response
+
+Here's what you'll get back from the recipe generation endpoint:
+
+```json
+{
+  "meals": [
+    {
+      "name": "Chicken Risotto alla Milanese",
+      "estimatedCookTime": "35 minutes",
+      "calories": "520 calories per serving",
+      "rating": 4.5,
+      "ingredients": [
+        "400g Arborio rice",
+        "500g chicken thighs, diced",
+        "1L warm chicken stock",
+        "1 onion, finely chopped",
+        "2 cloves garlic, minced",
+        "1/2 cup white wine",
+        "100g Parmesan cheese, grated"
+      ],
+      "instructions": [
+        "Heat olive oil in a large pan, cook chicken until golden",
+        "Add onion and garlic, cook until translucent",
+        "Add rice and stir for 2 minutes until coated",
+        "Add wine and stir until absorbed",
+        "Add stock one ladle at a time, stirring constantly",
+        "Cook for 18-20 minutes until rice is creamy",
+        "Stir in Parmesan and serve immediately"
+      ],
+      "proTips": [
+        "Keep the stock warm throughout cooking",
+        "Stir constantly for the creamiest texture",
+        "Taste the rice - it should be al dente"
+      ]
+    }
+    // ... 2 more meals
+  ],
+  "location": "Italy",
+  "provider": "gemini"
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="🔐 Authentication Guide"
+    icon="shield-halved"
+    href="/authentication/overview"
+  >
+    Learn about Apple Sign-In, Google Sign-In, and JWT token management.
+  </Card>
+  <Card
+    title="👤 User Onboarding"
+    icon="user-plus"
+    href="/user-management/onboarding"
+  >
+    Set up user profiles with dietary preferences and location data.
+  </Card>
+  <Card
+    title="🍽️ Recipe Personalization"
+    icon="utensils"
+    href="/recipes/personalization"
+  >
+    Understand how recipes are personalized based on user preferences.
+  </Card>
+  <Card
+    title="📱 Mobile SDKs"
+    icon="mobile"
+    href="/sdks/swift"
+  >
+    Integrate with iOS and Android applications using our SDKs.
+  </Card>
+</CardGroup>
+
+## Testing Your Integration
+
+We provide comprehensive test scripts to verify your integration:
+
+<CodeGroup>
+
+```javascript test-enhanced-recipes.js
+// Run comprehensive tests
+node test-enhanced-recipes.js
+```
+
+```bash test-enhanced-recipes.sh
+# Quick CURL-based test
+./test-enhanced-recipes.sh
+```
+
+</CodeGroup>
+
+## Interactive API Documentation
+
+Visit `http://localhost:3000/api/docs` to explore the interactive Swagger documentation with:
+- Live API testing
+- Request/response examples
+- Authentication integration
+- Schema validation
+
+<Tip>
+**Pro Tip**: Use the Swagger UI to test your API calls before implementing them in your application. It includes built-in authentication and shows real-time request/response data.
+</Tip> 

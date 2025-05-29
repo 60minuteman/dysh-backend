@@ -1,0 +1,138 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Dysh API Documentation",
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#FF6B35",
+    "light": "#FFB5A3",
+    "dark": "#E55A2B",
+    "anchors": {
+      "from": "#FF6B35",
+      "to": "#E55A2B"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "Support",
+      "url": "mailto:support@dysh.app"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Dashboard",
+    "url": "https://dashboard.dysh.app"
+  },
+  "tabs": [
+    {
+      "name": "API Reference",
+      "url": "api-reference"
+    },
+    {
+      "name": "SDKs",
+      "url": "sdks"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "Documentation",
+      "icon": "book-open-cover",
+      "url": "https://docs.dysh.app"
+    },
+    {
+      "name": "Community",
+      "icon": "slack",
+      "url": "https://discord.gg/dysh"
+    },
+    {
+      "name": "Blog",
+      "icon": "newspaper",
+      "url": "https://blog.dysh.app"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Get Started",
+      "pages": [
+        "introduction",
+        "quickstart",
+        "development"
+      ]
+    },
+    {
+      "group": "Authentication",
+      "pages": [
+        "authentication/overview",
+        "authentication/apple-signin",
+        "authentication/google-signin",
+        "authentication/jwt-tokens"
+      ]
+    },
+    {
+      "group": "User Management",
+      "pages": [
+        "user-management/onboarding",
+        "user-management/profiles",
+        "user-management/preferences"
+      ]
+    },
+    {
+      "group": "Recipe Generation",
+      "pages": [
+        "recipes/overview",
+        "recipes/personalization",
+        "recipes/location-based",
+        "recipes/dietary-preferences"
+      ]
+    },
+    {
+      "group": "API Documentation",
+      "pages": [
+        "api-reference/introduction"
+      ]
+    },
+    {
+      "group": "Authentication Endpoints",
+      "pages": [
+        "api-reference/auth/apple-signin",
+        "api-reference/auth/google-signin",
+        "api-reference/auth/refresh-token",
+        "api-reference/auth/get-profile"
+      ]
+    },
+    {
+      "group": "User Endpoints",
+      "pages": [
+        "api-reference/users/onboard",
+        "api-reference/users/get-profile"
+      ]
+    },
+    {
+      "group": "Recipe Endpoints",
+      "pages": [
+        "api-reference/recipes/generate"
+      ]
+    },
+    {
+      "group": "SDKs & Libraries",
+      "pages": [
+        "sdks/javascript",
+        "sdks/swift",
+        "sdks/kotlin"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "x": "https://x.com/dyshapp",
+    "github": "https://github.com/dysh-app",
+    "linkedin": "https://www.linkedin.com/company/dysh"
+  },
+  "api": {
+    "baseUrl": "http://localhost:3000",
+    "auth": {
+      "method": "bearer"
+    }
+  }
+} 

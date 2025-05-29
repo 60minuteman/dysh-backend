@@ -1,0 +1,70 @@
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { AppModule } from './app.module';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  // Enable validation globally
+  app.useGlobalPipes(new ValidationPipe({
+    transform: true,
+    whitelist: true,
+    forbidNonWhitelisted: true,
+  }));
+
+  // Enable request/response logging in development mode
+  if (process.env.NODE_ENV === 'development') {
+    app.useGlobalInterceptors(new LoggingInterceptor());
+  }
+
+  // Swagger configuration
+  const config = new DocumentBuilder()
+    .setTitle('Dysh Backend API')
+    .setDescription('AI-powered recipe generation platform with comprehensive user onboarding and authentication')
+    .setVersion('1.0')
+    .addTag('auth', 'Authentication endpoints (Apple/Google Sign-In)')
+    .addTag('user', 'User onboarding and management endpoints')
+    .addTag('recipes', 'Recipe generation endpoints')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'Authorization',
+        description: 'Enter your JWT access token',
+        in: 'header',
+      },
+      'JWT-auth',
+    )
+    .addServer('http://localhost:3000', 'Development server')
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+      tagsSorter: 'alpha',
+      operationsSorter: 'alpha',
+      docExpansion: 'none',
+      filter: true,
+      showRequestDuration: true,
+    },
+  });
+
+  // Enable CORS for frontend integration
+  app.enableCors();
+
+  const port = process.env.PORT || 3000;
+  await app.listen(port);
+  
+  console.log(`🚀 Application is running on: http://localhost:${port}`);
+  console.log(`📚 API Documentation available at: http://localhost:${port}/api/docs`);
+  console.log(`🔐 Authentication: Apple Sign-In (iOS) & Google Sign-In (Android)`);
+  
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`🔍 Request/Response logging enabled for development mode`);
+  }
+}
+bootstrap();

@@ -1,0 +1,434 @@
+---
+title: "Generate Personalized Recipes with AI Images"
+api: "POST http://localhost:3000/recipes/generate"
+description: "Generate 3 personalized, location-based meals with AI-generated images using advanced AI based on ingredients and user preferences"
+---
+
+## Overview
+
+The recipe generation endpoint is the core of the Dysh API. It creates 3 unique, personalized meals **with AI-generated images** based on:
+
+- **Ingredients**: 1-15 ingredients provided in the request
+- **User Preferences**: Dietary restrictions, serving sizes from user profile
+- **Location/Cuisine**: User's location or country override for cuisine style
+- **AI Intelligence**: Advanced AI models that understand cooking techniques and flavor combinations
+- **🆕 AI Images**: Professional food photography-style images generated for each meal
+
+<Note>
+This endpoint requires authentication. Include a valid JWT access token in the Authorization header.
+</Note>
+
+## What's New: AI-Generated Meal Images 🎨
+
+Each recipe now includes a **professionally generated image** using Gemini 2.0 Flash Preview Image Generation:
+- **High-quality food photography** style images
+- **Restaurant-quality presentation** with beautiful plating
+- **Professional lighting and composition**
+- **Base64-encoded** for easy frontend integration
+- **Automatic fallback** to placeholder if image generation fails
+
+## Authentication
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token obtained from Apple Sign-In or Google Sign-In authentication
+</ParamField>
+
+## Request Body
+
+<ParamField body="ingredients" type="array" required>
+  Array of 1-15 ingredient strings. The AI will use these as the base for recipe generation.
+  
+  <Expandable title="Example ingredients">
+    ```json
+    [
+      "chicken breast",
+      "basmati rice", 
+      "tomatoes",
+      "garlic",
+      "onion",
+      "olive oil"
+    ]
+    ```
+  </Expandable>
+</ParamField>
+
+<ParamField body="country" type="string" optional>
+  Country name to override user's location for cuisine style. Supports 20+ countries including Italy, Japan, Mexico, India, France, Thailand, etc.
+  
+  <Expandable title="Supported countries">
+    - Italy (Italian cuisine)
+    - Japan (Japanese cuisine)  
+    - Mexico (Mexican cuisine)
+    - India (Indian cuisine)
+    - France (French cuisine)
+    - Thailand (Thai cuisine)
+    - Greece (Greek cuisine)
+    - Spain (Spanish cuisine)
+    - United States (American cuisine)
+    - Korea (Korean cuisine)
+    - Vietnam (Vietnamese cuisine)
+    - Turkey (Turkish cuisine)
+    - Morocco (Moroccan cuisine)
+    - Germany (German cuisine)
+    - United Kingdom (British cuisine)
+    - Brazil (Brazilian cuisine)
+    - Argentina (Argentinian cuisine)
+    - Lebanon (Lebanese cuisine)
+    - Peru (Peruvian cuisine)
+    - China (Chinese cuisine)
+  </Expandable>
+</ParamField>
+
+## Response
+
+<ResponseField name="meals" type="array" required>
+  Array of 3 meal objects, each containing structured recipe data and AI-generated image
+  
+  <Expandable title="Meal object structure">
+    <ResponseField name="name" type="string">
+      Descriptive name of the meal in the appropriate cuisine style
+    </ResponseField>
+    
+    <ResponseField name="estimatedCookTime" type="string">
+      Realistic cooking time estimate (e.g., "25 minutes", "1 hour 15 minutes")
+    </ResponseField>
+    
+    <ResponseField name="calories" type="string">
+      Estimated calories per serving (e.g., "450 calories per serving")
+    </ResponseField>
+    
+    <ResponseField name="rating" type="number">
+      AI-generated rating from 3.5 to 5.0 stars based on recipe complexity and appeal
+    </ResponseField>
+    
+    <ResponseField name="ingredients" type="array">
+      Detailed ingredient list with specific measurements and preparation notes
+    </ResponseField>
+    
+    <ResponseField name="instructions" type="array">
+      Step-by-step cooking instructions in logical order
+    </ResponseField>
+    
+    <ResponseField name="proTips" type="array">
+      Professional cooking tips and tricks to improve the dish
+    </ResponseField>
+    
+    <ResponseField name="image" type="string">
+      🆕 Base64-encoded AI-generated image of the meal in professional food photography style
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="location" type="string" required>
+  The country/cuisine style used for recipe generation (either from user profile or country override)
+</ResponseField>
+
+<ResponseField name="provider" type="string" required>
+  AI provider used for generation ("gemini" or "deepseek")
+</ResponseField>
+
+## Example Requests
+
+<CodeGroup>
+
+```javascript Default (User Location)
+const response = await fetch('http://localhost:3000/recipes/generate', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer your_access_token',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    ingredients: ['chicken', 'rice', 'vegetables', 'garlic', 'soy sauce']
+  })
+});
+
+const data = await response.json();
+```
+
+```javascript Italian Cuisine Override
+const response = await fetch('http://localhost:3000/recipes/generate', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer your_access_token',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    ingredients: ['pasta', 'tomatoes', 'garlic', 'basil', 'olive oil'],
+    country: 'Italy'
+  })
+});
+
+const data = await response.json();
+```
+
+```bash cURL Example
+curl -X POST http://localhost:3000/recipes/generate \
+  -H "Authorization: Bearer your_access_token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ingredients": ["salmon", "rice", "nori", "cucumber", "soy sauce"],
+    "country": "Japan"
+  }'
+```
+
+</CodeGroup>
+
+## Example Response with Images
+
+```json
+{
+  "meals": [
+    {
+      "name": "Spaghetti al Pomodoro e Basilico",
+      "estimatedCookTime": "25 minutes",
+      "calories": "450 calories per serving",
+      "rating": 4.6,
+      "ingredients": [
+        "400g spaghetti",
+        "800g ripe tomatoes, peeled and chopped",
+        "4 cloves garlic, minced",
+        "1/2 cup fresh basil leaves, chopped",
+        "1/4 cup extra virgin olive oil",
+        "100g Parmesan cheese, grated",
+        "Salt and freshly ground black pepper to taste"
+      ],
+      "instructions": [
+        "Cook spaghetti according to package directions until al dente. Reserve 1 cup of pasta water before draining.",
+        "Heat olive oil in a large pan over medium heat. Add minced garlic and cook for 1 minute until fragrant.",
+        "Add chopped tomatoes to the pan and season with salt and pepper. Simmer for 15-20 minutes until sauce thickens.",
+        "Add the drained pasta to the sauce and toss well. Add pasta water if needed to achieve desired consistency.",
+        "Remove from heat and stir in fresh basil and half the Parmesan cheese.",
+        "Serve immediately with remaining Parmesan cheese on top.",
+        "Garnish with additional fresh basil leaves if desired."
+      ],
+      "proTips": [
+        "Use high-quality, ripe tomatoes for the best flavor. San Marzano tomatoes are ideal.",
+        "Don't overcook the garlic - it should be fragrant but not browned.",
+        "Save some pasta cooking water to adjust the sauce consistency - the starch helps bind everything together."
+      ],
+      "image": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB..."
+    },
+    {
+      "name": "Penne alla Puttanesca", 
+      "estimatedCookTime": "30 minutes",
+      "calories": "580 calories per serving",
+      "rating": 4.2,
+      "ingredients": [
+        "400g penne pasta",
+        "400g canned crushed tomatoes",
+        "4 cloves garlic, thinly sliced",
+        "1/4 cup extra virgin olive oil",
+        "2 tbsp capers, drained",
+        "1/2 cup Kalamata olives, pitted and halved",
+        "4 anchovy fillets, chopped",
+        "1/4 tsp red pepper flakes"
+      ],
+      "instructions": [
+        "Cook penne pasta according to package directions until al dente.",
+        "Heat olive oil in a large skillet over medium heat. Add garlic and cook until golden.",
+        "Add anchovies and red pepper flakes, cook for 1 minute until anchovies dissolve.",
+        "Add crushed tomatoes, capers, and olives. Simmer for 15 minutes.",
+        "Add drained pasta to the sauce and toss well.",
+        "Cook for 2-3 minutes to allow pasta to absorb flavors.",
+        "Serve immediately with fresh parsley if desired."
+      ],
+      "proTips": [
+        "The anchovies are the defining flavor of Puttanesca, don't skip them.",
+        "Use good quality olives - they make a significant difference in the final dish.",
+        "This sauce is traditionally served without cheese, but you can add a small amount of Parmesan if preferred."
+      ],
+      "image": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB..."
+    },
+    {
+      "name": "Pasta with Roasted Tomatoes, Garlic and Basil",
+      "estimatedCookTime": "45 minutes",
+      "calories": "520 calories per serving",
+      "rating": 4.8,
+      "ingredients": [
+        "400g farfalle pasta",
+        "1 kg cherry tomatoes, halved",
+        "6 cloves garlic, minced",
+        "1/3 cup extra virgin olive oil",
+        "1 cup fresh basil leaves, torn",
+        "100g Parmesan cheese, grated",
+        "1 tsp salt",
+        "1/2 tsp black pepper"
+      ],
+      "instructions": [
+        "Preheat oven to 200°C (400°F).",
+        "Toss halved cherry tomatoes with olive oil, minced garlic, salt, and pepper.",
+        "Spread on a baking sheet and roast for 25-30 minutes until caramelized.",
+        "Cook pasta according to package directions until al dente.",
+        "Combine hot pasta with roasted tomatoes and their juices.",
+        "Add torn basil leaves and half the Parmesan cheese.",
+        "Serve immediately with remaining cheese and extra basil."
+      ],
+      "proTips": [
+        "Roasting the tomatoes brings out their natural sweetness and intensifies their flavor.",
+        "Don't skip the juices from the roasted tomatoes - they create a natural sauce.",
+        "Add the basil at the end to preserve its fresh flavor and vibrant color."
+      ],
+      "image": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB..."
+    }
+  ],
+  "location": "Italy",
+  "provider": "gemini"
+}
+```
+
+## Personalization Features
+
+The API automatically personalizes recipes based on the authenticated user's profile:
+
+<AccordionGroup>
+  <Accordion title="Dietary Preferences">
+    - **Vegetarian**: Removes meat, suggests plant-based proteins
+    - **Vegan**: Removes all animal products, suggests plant-based alternatives  
+    - **Pescatarian**: Allows fish/seafood, removes other meats
+    - **Gluten-Free**: Substitutes wheat products with gluten-free alternatives
+    - **Ketogenic**: Focuses on low-carb, high-fat ingredients
+  </Accordion>
+
+  <Accordion title="Serving Sizes">
+    Recipes are automatically scaled based on user's preferred serving size:
+    - 2 people: Smaller portions, intimate cooking
+    - 4 people: Standard family size (default)
+    - 6 people: Larger gatherings, party-style portions
+  </Accordion>
+
+  <Accordion title="Location-Based Cuisine">
+    - Uses user's location from profile for authentic regional cuisine
+    - Can be overridden with `country` parameter
+    - Includes traditional cooking techniques and ingredient combinations
+    - Adapts to local ingredient availability and preferences
+  </Accordion>
+
+  <Accordion title="🆕 AI-Generated Images">
+    - **Professional food photography** style for each meal
+    - **Restaurant-quality plating** and presentation
+    - **Optimized lighting and composition**
+    - **Base64 encoding** for direct frontend integration
+    - **Graceful fallbacks** if image generation fails
+  </Accordion>
+</AccordionGroup>
+
+## Performance & Response Times
+
+<Note>
+With the addition of AI image generation, response times have increased but provide significantly enhanced value:
+
+- **Previous**: 6-8 seconds (text only)
+- **Enhanced**: 12-15 seconds (text + 3 AI images)
+- **Timeout**: 45 seconds recommended
+- **Fallback**: Service continues even if some images fail
+</Note>
+
+## Error Responses
+
+<ResponseExample>
+```json 401 Unauthorized
+{
+  "statusCode": 401,
+  "message": "Unauthorized",
+  "error": "Unauthorized"
+}
+```
+</ResponseExample>
+
+<ResponseExample>
+```json 400 Bad Request
+{
+  "statusCode": 400,
+  "message": [
+    "ingredients must be an array",
+    "ingredients must contain at least 1 elements"
+  ],
+  "error": "Bad Request"
+}
+```
+</ResponseExample>
+
+<ResponseExample>
+```json 500 AI Service Error
+{
+  "statusCode": 500,
+  "message": "Both AI providers failed. DeepSeek error: Insufficient balance",
+  "error": "Internal Server Error"
+}
+```
+</ResponseExample>
+
+## Rate Limits
+
+- **Authenticated requests**: 100 requests per hour per user
+- **Recipe generation**: 10 requests per minute per user
+- **Burst allowance**: Up to 5 concurrent requests
+- **Enhanced processing**: Allow extra time for image generation
+
+<Tip>
+For production applications with higher volume needs, contact us about enterprise plans with increased rate limits and dedicated AI resources.
+</Tip>
+
+## Frontend Integration Best Practices
+
+### Image Display
+```jsx
+// React component for displaying meal images
+function MealImage({ meal }) {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
+  return (
+    <div className="meal-image-container">
+      {meal.image && !imageError ? (
+        <img
+          src={meal.image}
+          alt={meal.name}
+          onLoad={() => setImageLoaded(true)}
+          onError={() => setImageError(true)}
+          style={{
+            display: imageLoaded ? 'block' : 'none',
+            width: '100%',
+            height: '300px',
+            objectFit: 'cover',
+            borderRadius: '8px'
+          }}
+        />
+      ) : (
+        <div className="image-placeholder">
+          📸 Image not available
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+### Loading States
+```jsx
+// Enhanced loading state for recipe + image generation
+function RecipeGenerationLoader() {
+  return (
+    <div className="loading-container">
+      <div className="spinner" />
+      <p>Generating personalized recipes...</p>
+      <p className="sub-text">Creating AI images (12-15 seconds)</p>
+    </div>
+  );
+}
+```
+
+## SDKs and Libraries
+
+<CardGroup cols={3}>
+  <Card title="JavaScript/TypeScript" icon="js" href="/sdks/javascript">
+    Official SDK with image support for web and Node.js applications
+  </Card>
+  <Card title="Swift" icon="swift" href="/sdks/swift">
+    Native iOS SDK with Apple Sign-In and image handling integration
+  </Card>
+  <Card title="Kotlin" icon="android" href="/sdks/kotlin">
+    Native Android SDK with Google Sign-In and image display utilities
+  </Card>
+</CardGroup> 

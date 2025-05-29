@@ -1,0 +1,124 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String       @id @default(cuid())
+  email             String?      @unique
+  emailVerified     Boolean      @default(false)
+  
+  // User profile information (from Apple/Google first sign-in)
+  firstName         String?
+  lastName          String?
+  fullName          String?
+  
+  // Authentication fields
+  appleId           String?      @unique
+  googleId          String?      @unique
+  refreshToken      String?      // For JWT refresh
+  lastLoginAt       DateTime?
+  
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  
+  // Onboarding data
+  profile           UserProfile?
+  deviceInfo        DeviceInfo[]
+  
+  @@map("users")
+}
+
+model UserProfile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  
+  // Onboarding fields
+  dietaryPreference DietaryPreference
+  ingredients       String[] // Array of ingredient names
+  preferredServings Int      // 2, 4, or 6
+  subscriptionPlan  SubscriptionPlan?
+  onboardingVersion String
+  isOnboardingComplete Boolean @default(false)
+  
+  // Location data
+  location          Location?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("user_profiles")
+}
+
+model Location {
+  id                String   @id @default(cuid())
+  profileId         String   @unique
+  
+  latitude          Float?
+  longitude         Float?
+  region            String?
+  country           String?
+  countryCode       String?
+  permissionGranted Boolean
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  profile           UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  @@map("locations")
+}
+
+model DeviceInfo {
+  id         String   @id @default(cuid())
+  userId     String
+  
+  platform   Platform?
+  appVersion String?
+  deviceId   String?
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  // Relations
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("device_info")
+}
+
+// Enums
+enum DietaryPreference {
+  NONE
+  VEGETARIAN
+  VEGAN
+  PESCATARIAN
+  GLUTEN_FREE
+  KETO
+}
+
+enum SubscriptionPlan {
+  YEARLY
+  MONTHLY
+  SKIP
+}
+
+enum Platform {
+  IOS
+  ANDROID
+  WEB
+}

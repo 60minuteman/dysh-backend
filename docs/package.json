@@ -1,0 +1,24 @@
+{
+  "name": "dysh-api-docs",
+  "version": "1.0.0",
+  "description": "Dysh API Documentation powered by Mintlify",
+  "scripts": {
+    "dev": "mintlify dev",
+    "start": "mintlify dev",
+    "build": "mintlify build",
+    "preview": "mintlify preview"
+  },
+  "devDependencies": {
+    "@mintlify/cli": "^4.0.0"
+  },
+  "keywords": [
+    "dysh",
+    "api",
+    "documentation",
+    "recipes",
+    "ai",
+    "mintlify"
+  ],
+  "author": "Dysh Team",
+  "license": "MIT"
+}

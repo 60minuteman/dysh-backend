@@ -1,0 +1,29 @@
+services:
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: dysh_user
+      POSTGRES_PASSWORD: dysh_password
+      POSTGRES_DB: dysh_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://dysh_user:dysh_password@db:5432/dysh_db?schema=public
+      PORT: 3000
+    depends_on:
+      - db
+    volumes:
+      - .:/app
+      - /app/node_modules
+
+volumes:
+  postgres_data: 

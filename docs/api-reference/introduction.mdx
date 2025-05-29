@@ -1,0 +1,107 @@
+---
+title: "API Reference"
+description: "Complete reference for the Dysh API endpoints"
+---
+
+## Welcome to the Dysh API Reference
+
+The Dysh API provides powerful endpoints for AI-powered recipe generation, user authentication, and profile management. All endpoints are RESTful and return JSON responses.
+
+## Base URL
+
+```
+http://localhost:3000  # Development
+https://api.dysh.app   # Production
+```
+
+## Authentication
+
+Most endpoints require authentication using JWT tokens obtained through Apple Sign-In or Google Sign-In.
+
+```bash
+Authorization: Bearer <your_access_token>
+```
+
+## Response Format
+
+All API responses follow a consistent format:
+
+### Success Response
+```json
+{
+  "data": {
+    // Response data here
+  },
+  "status": "success"
+}
+```
+
+### Error Response
+```json
+{
+  "statusCode": 400,
+  "message": "Error description",
+  "error": "Bad Request"
+}
+```
+
+## Rate Limits
+
+- **Authentication endpoints**: 20 requests per minute
+- **Recipe generation**: 10 requests per minute per user
+- **User management**: 100 requests per hour per user
+
+## Endpoint Categories
+
+<CardGroup cols={2}>
+  <Card
+    title="🔐 Authentication"
+    icon="shield-halved"
+    href="/api-reference/auth/apple-signin"
+  >
+    Apple Sign-In, Google Sign-In, JWT token management
+  </Card>
+  <Card
+    title="👤 User Management"
+    icon="user"
+    href="/api-reference/users/onboard"
+  >
+    User onboarding, profiles, preferences
+  </Card>
+  <Card
+    title="🍽️ Recipe Generation"
+    icon="utensils"
+    href="/api-reference/recipes/generate"
+  >
+    AI-powered personalized recipe generation
+  </Card>
+  <Card
+    title="📊 Analytics"
+    icon="chart-line"
+    href="/api-reference/analytics/usage"
+  >
+    Usage statistics and performance metrics
+  </Card>
+</CardGroup>
+
+## Interactive Testing
+
+Visit the [Swagger UI](http://localhost:3000/api/docs) for interactive API testing with:
+- Live request/response testing
+- Authentication integration
+- Schema validation
+- Code generation
+
+## SDKs
+
+<CardGroup cols={3}>
+  <Card title="JavaScript" icon="js" href="/sdks/javascript">
+    Official SDK for web and Node.js
+  </Card>
+  <Card title="Swift" icon="swift" href="/sdks/swift">
+    Native iOS SDK
+  </Card>
+  <Card title="Kotlin" icon="android" href="/sdks/kotlin">
+    Native Android SDK
+  </Card>
+</CardGroup> 
