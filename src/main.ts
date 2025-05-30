@@ -37,11 +37,18 @@ async function bootstrap() {
         in: 'header',
       },
       'JWT-auth',
-    )
-    .addServer('http://localhost:3000', 'Development server')
-    .build();
+    );
 
-  const document = SwaggerModule.createDocument(app, config);
+  // Add servers based on environment
+  if (process.env.NODE_ENV === 'production') {
+    // Production server (Render will provide the URL)
+    config.addServer('https://dysh-backend.onrender.com', 'Production server');
+  } else {
+    // Development server
+    config.addServer('http://localhost:3000', 'Development server');
+  }
+
+  const document = SwaggerModule.createDocument(app, config.build());
   SwaggerModule.setup('api/docs', app, document, {
     swaggerOptions: {
       persistAuthorization: true,
@@ -57,7 +64,7 @@ async function bootstrap() {
   app.enableCors();
 
   const port = process.env.PORT || 3000;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0'); // Listen on all interfaces for Render
   
   console.log(`🚀 Application is running on: http://localhost:${port}`);
   console.log(`📚 API Documentation available at: http://localhost:${port}/api/docs`);

@@ -25,7 +25,9 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "docker:dev": "docker-compose -f docker-compose.dev.yml up -d",
-    "docker:down": "docker-compose -f docker-compose.dev.yml down"
+    "docker:down": "docker-compose -f docker-compose.dev.yml down",
+    "render:build": "yarn install && yarn build && npx prisma generate",
+    "render:start": "npx prisma migrate deploy && node dist/main"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

@@ -1,0 +1,42 @@
+services:
+  # PostgreSQL Database
+  - type: pserv
+    name: dysh-db
+    env: node
+    plan: starter
+    region: oregon
+    databaseName: dysh_db
+    databaseUser: dysh_user
+
+  # Web Service
+  - type: web
+    name: dysh-backend
+    env: node
+    plan: starter
+    region: oregon
+    buildCommand: yarn install && yarn build
+    startCommand: node dist/main
+    healthCheckPath: /api/docs
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: dysh-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      # Add your API keys as environment variables in Render dashboard
+      # These will need to be set manually for security:
+      # - APPLE_CLIENT_ID
+      # - APPLE_TEAM_ID  
+      # - APPLE_KEY_ID
+      # - APPLE_PRIVATE_KEY
+      # - GOOGLE_CLIENT_ID
+      # - GOOGLE_CLIENT_SECRET
+      # - OPENAI_API_KEY
+      # - GEMINI_API_KEY 
