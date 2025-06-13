@@ -45,8 +45,9 @@ COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=nestjs:nodejs /app/prisma ./prisma
 
-# Create a startup script that runs migrations and starts the app
-RUN echo '#!/bin/sh\nnpx prisma migrate deploy && node dist/main.js' > /app/start.sh && chmod +x /app/start.sh && chown nestjs:nodejs /app/start.sh
+# Copy the startup script
+COPY --chown=nestjs:nodejs start.sh /app/start.sh
+RUN chmod +x /app/start.sh
 
 USER nestjs
 
