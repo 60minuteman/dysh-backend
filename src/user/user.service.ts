@@ -1,7 +1,9 @@
-import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { OnboardUserDto, DietaryPreference, SubscriptionPlan, Platform } from './dto/onboard-user.dto';
-import { DietaryPreference as PrismaDietaryPreference, SubscriptionPlan as PrismaSubscriptionPlan, Platform as PrismaPlatform } from '../../generated/prisma';
+import { DietaryPreference as PrismaDietaryPreference, SubscriptionPlan as PrismaSubscriptionPlan, Platform as PrismaPlatform } from '@prisma/client';
+import { UserProfileResponseDto } from './dto/user-profile-response.dto';
+import { CuisinePreferencesResponseDto, NextMealResponseDto } from './dto/cuisine-preferences.dto';
 
 @Injectable()
 export class UserService {
@@ -193,5 +195,122 @@ export class UserService {
     });
 
     return profile;
+  }
+
+  async getCurrentUserProfile(userId: string): Promise<UserProfileResponseDto> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        isPro: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      isPro: user.isPro,
+      userId: user.id,
+      email: user.email,
+      fullName: user.fullName,
+    };
+  }
+
+  async getCuisinePreferences(userId: string): Promise<CuisinePreferencesResponseDto> {
+    const preferences = await this.prisma.userCuisinePreference.findMany({
+      where: { userId },
+      select: { cuisine: true },
+    });
+
+    return {
+      preferences: preferences.map(p => p.cuisine),
+    };
+  }
+
+  async addCuisinePreference(userId: string, cuisine: string): Promise<CuisinePreferencesResponseDto> {
+    // Check if preference already exists
+    const existingPreference = await this.prisma.userCuisinePreference.findUnique({
+      where: {
+        userId_cuisine: {
+          userId,
+          cuisine: cuisine.toLowerCase(),
+        },
+      },
+    });
+
+    if (existingPreference) {
+      throw new BadRequestException('Cuisine preference already exists');
+    }
+
+    // Add the preference
+    await this.prisma.userCuisinePreference.create({
+      data: {
+        userId,
+        cuisine: cuisine.toLowerCase(),
+      },
+    });
+
+    // Return updated preferences
+    return this.getCuisinePreferences(userId);
+  }
+
+  async removeCuisinePreference(userId: string, cuisine: string): Promise<CuisinePreferencesResponseDto> {
+    // Remove the preference
+    await this.prisma.userCuisinePreference.delete({
+      where: {
+        userId_cuisine: {
+          userId,
+          cuisine: cuisine.toLowerCase(),
+        },
+      },
+    });
+
+    // Return updated preferences
+    return this.getCuisinePreferences(userId);
+  }
+
+  async getNextMeal(): Promise<NextMealResponseDto> {
+    const now = new Date();
+    const currentHour = now.getHours();
+    
+    // Define meal times
+    const mealTimes = [
+      { name: 'breakfast', hour: 7 },   // 7:00 AM
+      { name: 'lunch', hour: 12 },      // 12:00 PM
+      { name: 'dinner', hour: 18 },     // 6:00 PM
+    ];
+
+    // Find the next meal
+    let nextMeal = mealTimes.find(meal => meal.hour > currentHour);
+    
+    // If no meal found today, next meal is breakfast tomorrow
+    if (!nextMeal) {
+      nextMeal = { name: 'breakfast', hour: 7 };
+      // Calculate minutes until tomorrow's breakfast
+      const minutesUntilMidnight = (24 - currentHour) * 60 - now.getMinutes();
+      const minutesFromMidnightToBreakfast = 7 * 60; // 7 AM
+      const totalMinutes = minutesUntilMidnight + minutesFromMidnightToBreakfast;
+      
+      return {
+        nextMealType: nextMeal.name,
+        minutesUntil: totalMinutes,
+        displayText: `${nextMeal.name.charAt(0).toUpperCase() + nextMeal.name.slice(1)} in ${Math.floor(totalMinutes / 60)}:${(totalMinutes % 60).toString().padStart(2, '0')}`,
+      };
+    }
+
+    // Calculate minutes until next meal today
+    const minutesUntilNextMeal = (nextMeal.hour - currentHour) * 60 - now.getMinutes();
+    const hours = Math.floor(minutesUntilNextMeal / 60);
+    const minutes = minutesUntilNextMeal % 60;
+
+    return {
+      nextMealType: nextMeal.name,
+      minutesUntil: minutesUntilNextMeal,
+      displayText: `${nextMeal.name.charAt(0).toUpperCase() + nextMeal.name.slice(1)} in ${hours}:${minutes.toString().padStart(2, '0')}`,
+    };
   }
 } 

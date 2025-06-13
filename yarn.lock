@@ -1036,6 +1036,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@nestjs/schedule@npm:^6.0.0":
+  version: 6.0.0
+  resolution: "@nestjs/schedule@npm:6.0.0"
+  dependencies:
+    cron: 4.3.0
+  peerDependencies:
+    "@nestjs/common": ^10.0.0 || ^11.0.0
+    "@nestjs/core": ^10.0.0 || ^11.0.0
+  checksum: 0adadc62838af60ef8800d7dc18ec99378fb13b6b6bacbba1b0b7cd035d4c4674d7494202018456657b2f263577eb20a4cf4e0247be24412cabd253b2f8f6eb0
+  languageName: node
+  linkType: hard
+
 "@nestjs/schematics@npm:^10.0.0, @nestjs/schematics@npm:^10.0.1":
   version: 10.2.3
   resolution: "@nestjs/schematics@npm:10.2.3"
@@ -1562,6 +1574,13 @@ __metadata:
   dependencies:
     "@types/node": "*"
   checksum: 872b62e2a50ec399d695402ccddfeb5cd66a6c3d28511f27453b932b6b67eb82c2d0ecaa864939848b88b3a8276c2492647bf5707bc82a6ac7e420d3412b9047
+  languageName: node
+  linkType: hard
+
+"@types/luxon@npm:~3.6.0":
+  version: 3.6.2
+  resolution: "@types/luxon@npm:3.6.2"
+  checksum: fa7bf7d74544c77c2010739337d359c5d6f9b0424de0e0eb273f7bae203996168cc33c2ad6f3b35771eac8fea8b7e5bcce72b91d129924d0f84b91dc216de42e
   languageName: node
   linkType: hard
 
@@ -2826,6 +2845,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"cloudinary@npm:^2.6.1":
+  version: 2.6.1
+  resolution: "cloudinary@npm:2.6.1"
+  dependencies:
+    lodash: ^4.17.21
+    q: ^1.5.1
+  checksum: 635a4a1c5757b8b18d3c6e1dee0e167801eb61ab604f16504f04b4d819bf2953855d54921fc92469c58cc1abe4d238d7d59292e1d363c7f710643327bf408fc6
+  languageName: node
+  linkType: hard
+
 "co@npm:^4.6.0":
   version: 4.6.0
   resolution: "co@npm:4.6.0"
@@ -3027,6 +3056,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"cron@npm:4.3.0":
+  version: 4.3.0
+  resolution: "cron@npm:4.3.0"
+  dependencies:
+    "@types/luxon": ~3.6.0
+    luxon: ~3.6.0
+  checksum: 3577c759190bae89708bef65237cae8b393f3bce46b3457f292318a989dc8a7ae3a5ef7c3bff676567175a33176d94391164598c71ac8477af7c413047badd39
+  languageName: node
+  linkType: hard
+
 "cross-spawn@npm:^7.0.2, cross-spawn@npm:^7.0.3, cross-spawn@npm:^7.0.6":
   version: 7.0.6
   resolution: "cross-spawn@npm:7.0.6"
@@ -3212,6 +3251,7 @@ __metadata:
     "@nestjs/jwt": ^11.0.0
     "@nestjs/passport": ^11.0.5
     "@nestjs/platform-express": ^10.0.0
+    "@nestjs/schedule": ^6.0.0
     "@nestjs/schematics": ^10.0.0
     "@nestjs/swagger": ^11.2.0
     "@nestjs/testing": ^10.0.0
@@ -3230,12 +3270,14 @@ __metadata:
     bcryptjs: ^3.0.2
     class-transformer: ^0.5.1
     class-validator: ^0.14.2
+    cloudinary: ^2.6.1
     eslint: ^8.42.0
     eslint-config-prettier: ^9.0.0
     eslint-plugin-prettier: ^5.0.0
     google-auth-library: ^9.15.1
     jest: ^29.5.0
     jsonwebtoken: ^9.0.2
+    node-cron: ^4.1.0
     openai: ^4.102.0
     passport: ^0.7.0
     passport-jwt: ^4.0.1
@@ -5579,6 +5621,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"luxon@npm:~3.6.0":
+  version: 3.6.1
+  resolution: "luxon@npm:3.6.1"
+  checksum: bc6c24dde90f4263f548cc5a4ea3328e9c9511bee0b2255bd319639712862f1eb14a39c1b2dcbff8a8bf6686996d28f45b8fc902994a72dd05a29cef1269a6a4
+  languageName: node
+  linkType: hard
+
 "magic-string@npm:0.30.8":
   version: 0.30.8
   resolution: "magic-string@npm:0.30.8"
@@ -5939,6 +5988,13 @@ __metadata:
   version: 3.1.1
   resolution: "node-abort-controller@npm:3.1.1"
   checksum: 2c340916af9710328b11c0828223fc65ba320e0d082214a211311bf64c2891028e42ef276b9799188c4ada9e6e1c54cf7a0b7c05dd9d59fcdc8cd633304c8047
+  languageName: node
+  linkType: hard
+
+"node-cron@npm:^4.1.0":
+  version: 4.1.0
+  resolution: "node-cron@npm:4.1.0"
+  checksum: 1dafcb3373a9b2e0be35c3bd6ddd8feb1a32cba26290437bc57f99bceffa031e54d609b79565bb711f889e8765dc5a96a8710464188efdb7e10e61d07d294faf
   languageName: node
   linkType: hard
 
@@ -6505,6 +6561,13 @@ __metadata:
   version: 6.1.0
   resolution: "pure-rand@npm:6.1.0"
   checksum: 8d53bc02bed99eca0b65b505090152ee7e9bd67dd74f8ff32ba1c883b87234067c5bf68d2614759fb217d82594d7a92919e6df80f97885e7b12b42af4bd3316a
+  languageName: node
+  linkType: hard
+
+"q@npm:^1.5.1":
+  version: 1.5.1
+  resolution: "q@npm:1.5.1"
+  checksum: 147baa93c805bc1200ed698bdf9c72e9e42c05f96d007e33a558b5fdfd63e5ea130e99313f28efc1783e90e6bdb4e48b67a36fcc026b7b09202437ae88a1fb12
   languageName: node
   linkType: hard
 

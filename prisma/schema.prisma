@@ -6,7 +6,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
 }
 
 datasource db {
@@ -30,12 +29,25 @@ model User {
   refreshToken      String?      // For JWT refresh
   lastLoginAt       DateTime?
   
+  // Subscription status
+  isPro             Boolean      @default(false)
+  
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   
   // Onboarding data
   profile           UserProfile?
   deviceInfo        DeviceInfo[]
+  
+  // Meal plan data
+  cuisinePreferences UserCuisinePreference[]
+  
+  // New: Recipe interactions for cookbook
+  recipeInteractions UserRecipeInteraction[]
+  
+  // New: User locations and daily generated recipes
+  locations UserLocation[]
+  dailyRecipes DailyRecipe[]
   
   @@map("users")
 }
@@ -121,4 +133,134 @@ enum Platform {
   IOS
   ANDROID
   WEB
+}
+
+model Recipe {
+  id          String   @id @default(cuid())
+  title       String
+  duration    String   // "30 min" format to match frontend
+  calories    String   // "320 kcal" format to match frontend  
+  rating      String   // "4.5" format to match frontend
+  imageUrl    String
+  category    RecipeCategory
+  ingredients String[] // Array of ingredients with measurements
+  instructions String[] // Array of step-by-step instructions
+  proTips     String[] // Array of professional cooking tips
+  
+  // New fields for explore functionality
+  country     String?  // Country/cuisine origin (e.g., "Italy", "Nigeria", "Japan")
+  exploreCategory ExploreCategory? // For explore categorization
+  generationCount Int @default(1) // Track how many times generated (for trending)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  userInteractions UserRecipeInteraction[]
+  dailyRecipes DailyRecipe[]
+  
+  @@map("recipes")
+}
+
+model UserRecipeInteraction {
+  id       String @id @default(cuid())
+  userId   String
+  recipeId String
+  
+  // Interaction types
+  isLiked  Boolean @default(false) // Swiped right / added to cookbook
+  isViewed Boolean @default(false) // Recipe was shown to user
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, recipeId])
+  @@map("user_recipe_interactions")
+}
+
+model UserCuisinePreference {
+  userId    String
+  cuisine   String
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@id([userId, cuisine])
+  @@map("user_cuisine_preferences")
+}
+
+enum RecipeCategory {
+  BREAKFAST
+  BREAKFAST_LOW_CARB
+  BREAKFAST_HIGH_PROTEIN
+  LUNCH
+  LUNCH_LOW_CARB
+  LUNCH_HIGH_PROTEIN
+  DINNER
+  DINNER_LOW_CARB
+  DINNER_HIGH_PROTEIN
+  LOW_CARB
+  HIGH_PROTEIN
+}
+
+enum ExploreCategory {
+  TRENDING
+  THIRTY_MIN_MEALS
+  CHEFS_PICK
+  OCCASION
+  HEALTHY_LIGHT
+  COMFORT_FOOD
+  ONE_POT_MEALS
+}
+
+// New models for location-based daily recipe generation
+model UserLocation {
+  id          String   @id @default(cuid())
+  userId      String
+  
+  // Location details
+  name        String   // User-friendly name like "Home", "Work", "Lagos"
+  country     String   // Full country name like "Nigeria", "United States"
+  countryCode String   // ISO code like "NG", "US"
+  timezone    String   // IANA timezone like "Africa/Lagos", "America/New_York"
+  latitude    Float?   // Optional for more precise location
+  longitude   Float?   
+  
+  // Status
+  isPrimary   Boolean  @default(false) // User's main location
+  isActive    Boolean  @default(true)  // Whether to generate recipes for this location
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyRecipes DailyRecipe[]
+  
+  @@map("user_locations")
+}
+
+model DailyRecipe {
+  id          String   @id @default(cuid())
+  userId      String
+  locationId  String   // Which location this was generated for
+  recipeId    String   // Reference to the generated recipe
+  
+  // Generation details
+  category    RecipeCategory
+  generatedAt DateTime // When the recipe was generated (user's local time)
+  generatedDate String // Date in YYYY-MM-DD format for easy querying
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  location    UserLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  recipe      Recipe       @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, locationId, category, generatedDate])
+  @@map("daily_recipes")
 }

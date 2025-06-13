@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards, Request } from '@nestjs/common';
+import { Body, Controller, Post, UseGuards, Request, Get, Param, Query } from '@nestjs/common';
 import { 
   ApiTags, 
   ApiOperation, 
@@ -8,11 +8,14 @@ import {
   ApiInternalServerErrorResponse,
   ApiBearerAuth,
   ApiUnauthorizedResponse,
+  ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { RecipesService } from './recipes.service';
 import { GenerateRecipeDto } from './dto/generate-recipe.dto';
 import { RecipeResponseDto, RecipeErrorDto } from './dto/recipe-response.dto';
+import { RecipeListResponseDto } from './dto/recipe-list-response.dto';
 
 @ApiTags('recipes')
 @Controller('recipes')
@@ -98,5 +101,61 @@ export class RecipesController {
   ): Promise<RecipeResponseDto> {
     const userId = req.user.id;
     return this.recipesService.generatePersonalizedRecipe(generateRecipeDto, userId);
+  }
+
+  @Get(':category')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get recipes by category',
+    description: `Retrieve AI-generated recipes for a specific category with full details including ingredients, instructions, and pro tips.
+    
+    **Note for Frontend:**
+    - All users (pro and non-pro) receive up to 5 recipes
+    - Frontend should blur recipes beyond the first one for non-pro users
+    - Pro users can view all 5 recipes without restrictions
+    
+    **Available Categories:**
+    - **Breakfast:** breakfast, breakfast-low-carb, breakfast-high-protein
+    - **Lunch:** lunch, lunch-low-carb, lunch-high-protein  
+    - **Dinner:** dinner, dinner-low-carb, dinner-high-protein
+    - **General:** low-carb, high-protein`,
+  })
+  @ApiParam({
+    name: 'category',
+    description: 'Recipe category',
+    enum: [
+      'breakfast', 'breakfast-low-carb', 'breakfast-high-protein',
+      'lunch', 'lunch-low-carb', 'lunch-high-protein',
+      'dinner', 'dinner-low-carb', 'dinner-high-protein',
+      'low-carb', 'high-protein'
+    ],
+    example: 'breakfast',
+  })
+  @ApiQuery({
+    name: 'limit',
+    description: 'Number of recipes to return (max 5, all users get same amount)',
+    required: false,
+    type: Number,
+    example: 5,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Recipes retrieved successfully with full details (ingredients, instructions, pro tips). Frontend handles blurring for non-pro users.',
+    type: RecipeListResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid category provided',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Authentication required',
+  })
+  async getRecipesByCategory(
+    @Param('category') category: string,
+    @Request() req: any,
+    @Query('limit') limit?: number
+  ): Promise<RecipeListResponseDto> {
+    const userId = req.user.id;
+    return this.recipesService.getRecipesByCategory(category, limit || 5, userId);
   }
 }

@@ -6,6 +6,7 @@ import { RecipesModule } from './recipes/recipes.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
+import { CommonModule } from './common/common.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { AuthModule } from './auth/auth.module';
       isGlobal: true,
     }),
     PrismaModule,
+    CommonModule,
     RecipesModule,
     UserModule,
     AuthModule,

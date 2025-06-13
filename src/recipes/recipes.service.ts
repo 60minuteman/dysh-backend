@@ -1,8 +1,12 @@
-import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GenerateRecipeDto } from './dto/generate-recipe.dto';
 import { RecipeResponseDto, MealDto } from './dto/recipe-response.dto';
+import { RecipeListResponseDto } from './dto/recipe-list-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { CloudinaryService } from '../common/services/cloudinary.service';
+import { GeminiService } from '../common/services/gemini.service';
+import { RecipeCategory } from '@prisma/client';
 import axios from 'axios';
 
 @Injectable()
@@ -16,6 +20,8 @@ export class RecipesService {
   constructor(
     private configService: ConfigService,
     private prisma: PrismaService,
+    private cloudinaryService: CloudinaryService,
+    private geminiService: GeminiService,
   ) {
     this.geminiApiKey = this.configService.get<string>('GEMINI_API_KEY');
     this.deepseekApiKey = this.configService.get<string>('DEEPSEEK_API_KEY');
@@ -509,6 +515,397 @@ Requirements:
       }
       
       throw error;
+    }
+  }
+
+  async getRecipesByCategory(category: string, limit: number, userId: string): Promise<RecipeListResponseDto> {
+    // Get user for personalization (we'll still need user data for recipe generation)
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { isPro: true },
+    });
+
+    if (!user) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    // All users get the requested limit (up to 5), frontend will handle blurring for non-pro
+    const actualLimit = Math.min(limit, 5);
+
+    // Validate category and map to enum
+    const validCategories = [
+      'breakfast', 'breakfast-low-carb', 'breakfast-high-protein',
+      'lunch', 'lunch-low-carb', 'lunch-high-protein',
+      'dinner', 'dinner-low-carb', 'dinner-high-protein',
+      'low-carb', 'high-protein'
+    ];
+    
+    if (!validCategories.includes(category)) {
+      throw new BadRequestException(`Invalid category. Must be one of: ${validCategories.join(', ')}`);
+    }
+
+    const categoryMap: { [key: string]: RecipeCategory } = {
+      'breakfast': RecipeCategory.BREAKFAST,
+      'breakfast-low-carb': RecipeCategory.BREAKFAST_LOW_CARB,
+      'breakfast-high-protein': RecipeCategory.BREAKFAST_HIGH_PROTEIN,
+      'lunch': RecipeCategory.LUNCH,
+      'lunch-low-carb': RecipeCategory.LUNCH_LOW_CARB,
+      'lunch-high-protein': RecipeCategory.LUNCH_HIGH_PROTEIN,
+      'dinner': RecipeCategory.DINNER,
+      'dinner-low-carb': RecipeCategory.DINNER_LOW_CARB,
+      'dinner-high-protein': RecipeCategory.DINNER_HIGH_PROTEIN,
+      'low-carb': RecipeCategory.LOW_CARB,
+      'high-protein': RecipeCategory.HIGH_PROTEIN,
+    };
+
+    const recipeCategory = categoryMap[category];
+
+    // Check if we have existing recipes for this category
+    let existingRecipes = await this.prisma.recipe.findMany({
+      where: { category: recipeCategory },
+      take: actualLimit,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // If we don't have enough recipes, generate new ones
+    if (existingRecipes.length < actualLimit) {
+      const recipesToGenerate = actualLimit - existingRecipes.length;
+      const newRecipes = await this.generateRecipesForCategory(recipeCategory, recipesToGenerate, userId);
+      existingRecipes = [...newRecipes, ...existingRecipes];
+    }
+
+    // Convert to response format with full details
+    const recipes = existingRecipes.slice(0, actualLimit).map(recipe => ({
+      id: recipe.id,
+      title: recipe.title,
+      duration: recipe.duration,
+      calories: recipe.calories,
+      rating: recipe.rating,
+      imageUrl: recipe.imageUrl,
+      ingredients: recipe.ingredients,
+      instructions: recipe.instructions,
+      proTips: recipe.proTips,
+    }));
+
+    return { recipes };
+  }
+
+  // Public method for daily recipe generation with location support
+  async generateRecipes(category: RecipeCategory, count: number, dietaryPreference?: string, country?: string): Promise<any[]> {
+    // Define category-specific prompts and ingredients
+    const categoryPrompts = {
+      [RecipeCategory.BREAKFAST]: 'breakfast and morning meals',
+      [RecipeCategory.BREAKFAST_LOW_CARB]: 'low-carb breakfast and morning meals',
+      [RecipeCategory.BREAKFAST_HIGH_PROTEIN]: 'high-protein breakfast and morning meals',
+      [RecipeCategory.LUNCH]: 'lunch and midday meals',
+      [RecipeCategory.LUNCH_LOW_CARB]: 'low-carb lunch and midday meals',
+      [RecipeCategory.LUNCH_HIGH_PROTEIN]: 'high-protein lunch and midday meals',
+      [RecipeCategory.DINNER]: 'dinner and evening meals',
+      [RecipeCategory.DINNER_LOW_CARB]: 'low-carb dinner and evening meals',
+      [RecipeCategory.DINNER_HIGH_PROTEIN]: 'high-protein dinner and evening meals',
+      [RecipeCategory.LOW_CARB]: 'low-carb and ketogenic meals',
+      [RecipeCategory.HIGH_PROTEIN]: 'high-protein and fitness-focused meals',
+    };
+
+    const categoryKeywords = {
+      [RecipeCategory.BREAKFAST]: ['eggs', 'oats', 'fruits', 'yogurt', 'bread', 'milk'],
+      [RecipeCategory.BREAKFAST_LOW_CARB]: ['eggs', 'avocado', 'cheese', 'spinach', 'mushrooms'],
+      [RecipeCategory.BREAKFAST_HIGH_PROTEIN]: ['eggs', 'greek yogurt', 'protein powder', 'quinoa', 'nuts'],
+      [RecipeCategory.LUNCH]: ['chicken', 'vegetables', 'rice', 'beans', 'salad'],
+      [RecipeCategory.LUNCH_LOW_CARB]: ['chicken', 'fish', 'vegetables', 'avocado', 'cheese'],
+      [RecipeCategory.LUNCH_HIGH_PROTEIN]: ['chicken', 'beef', 'fish', 'beans', 'quinoa'],
+      [RecipeCategory.DINNER]: ['meat', 'vegetables', 'potatoes', 'pasta', 'rice'],
+      [RecipeCategory.DINNER_LOW_CARB]: ['fish', 'chicken', 'vegetables', 'cauliflower', 'broccoli'],
+      [RecipeCategory.DINNER_HIGH_PROTEIN]: ['beef', 'chicken', 'fish', 'lentils', 'tofu'],
+      [RecipeCategory.LOW_CARB]: ['vegetables', 'fish', 'chicken', 'avocado', 'cheese'],
+      [RecipeCategory.HIGH_PROTEIN]: ['chicken', 'beef', 'beans', 'quinoa', 'fish'],
+    };
+
+    const ingredients = categoryKeywords[category];
+    const cuisineStyle = this.getCuisineStyle(country || 'International');
+
+    let prompt = `You are a professional chef specializing in ${cuisineStyle} cuisine. Create exactly ${count} different ${categoryPrompts[category]} recipes using ${cuisineStyle} cooking techniques and ingredients.
+    
+Base ingredients to consider: ${ingredients.join(', ')}
+Cuisine style: ${cuisineStyle}`;
+
+    // Add dietary preference if provided
+    if (dietaryPreference && dietaryPreference !== 'NONE') {
+      const dietaryMap = {
+        VEGETARIAN: 'vegetarian (no meat)',
+        VEGAN: 'vegan (no animal products)',
+        PESCATARIAN: 'pescatarian (fish allowed, no other meat)',
+        GLUTEN_FREE: 'gluten-free',
+        KETO: 'ketogenic (low-carb, high-fat)',
+      };
+      prompt += `\nDietary requirement: ALL recipes must be ${dietaryMap[dietaryPreference] || dietaryPreference.toLowerCase()}.`;
+    }
+
+    prompt += `
+
+CRITICAL: Respond ONLY with valid JSON in this exact format:
+
+{
+  "recipes": [
+    {
+      "title": "Recipe Name with ${cuisineStyle} influence",
+      "duration": "30 min",
+      "calories": "320 kcal",
+      "rating": "4.5",
+      "ingredients": [
+        "2 cups flour",
+        "1 tsp salt",
+        "3 eggs"
+      ],
+      "instructions": [
+        "Step 1: Detailed instruction here",
+        "Step 2: Another detailed instruction",
+        "Step 3: Continue with cooking steps"
+      ],
+      "proTips": [
+        "Professional tip 1 for better results",
+        "Professional tip 2 for enhanced flavor"
+      ]
+    }
+  ]
+}
+
+Requirements:
+- Create exactly ${count} different recipes
+- Each recipe must be suitable for ${categoryPrompts[category]}
+- Use ${cuisineStyle} cooking techniques, spices, and ingredients
+- Use realistic cooking times (15-60 minutes)
+- Use realistic calorie counts (200-800 kcal)
+- Use ratings between 4.0-5.0
+- Include 5-8 ingredients with specific measurements per recipe
+- Include 4-8 detailed cooking instructions per recipe
+- Include 2-4 professional cooking tips per recipe
+- Make each recipe distinctly different from the others
+- Include authentic ${cuisineStyle} flavors and preparation methods`;
+
+    try {
+      let parsedResponse: any;
+      
+      // Try Gemini first
+      if (this.geminiApiKey) {
+        parsedResponse = await this.geminiService.generateRecipes(prompt);
+      } else if (this.deepseekApiKey) {
+        const aiResponse = await this.generateWithDeepSeek(prompt);
+        parsedResponse = this.geminiService.parseJsonFromResponse(aiResponse);
+      } else {
+        throw new Error('No AI provider available');
+      }
+
+      const aiRecipes = parsedResponse.recipes || [];
+
+      // Return recipe data without saving to database (DailyRecipeService will handle that)
+      const recipes = [];
+      for (const aiRecipe of aiRecipes) {
+        try {
+          // Generate themed image URL
+          const imageUrl = this.generateThemedImageUrl(aiRecipe.title, country);
+
+          recipes.push({
+            title: aiRecipe.title,
+            duration: aiRecipe.duration,
+            calories: aiRecipe.calories,
+            rating: aiRecipe.rating,
+            imageUrl,
+            ingredients: aiRecipe.ingredients || [],
+            instructions: aiRecipe.instructions || [],
+            proTips: aiRecipe.proTips || [],
+          });
+        } catch (error) {
+          console.error(`Failed to process recipe ${aiRecipe.title}:`, error);
+        }
+      }
+
+      return recipes;
+    } catch (error) {
+      console.error('Failed to generate recipes for category:', error);
+      throw new HttpException(
+        'Failed to generate recipes',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  private generateThemedImageUrl(title: string, country?: string): string {
+    const colors = {
+      'Nigeria': '#ff6b6b',
+      'Italy': '#4ecdc4',
+      'Japan': '#f0932b',
+      'Mexico': '#eb4d4b',
+      'France': '#6c5ce7',
+      'India': '#fd79a8',
+      'Thailand': '#fdcb6e',
+      'Greece': '#00b894',
+      'Morocco': '#e17055',
+      'Brazil': '#00cec9',
+      'Korea': '#a29bfe',
+      'Lebanon': '#fd79a8',
+      'Peru': '#ffeaa7',
+      'Turkey': '#fab1a0',
+      'China': '#ff7675',
+    };
+
+    const foodEmojis = ['🍽️', '🥘', '🍲', '🥗', '🍗', '🐟', '🥚', '🍝', '🥩', '🥙'];
+    const emoji = foodEmojis[Math.floor(Math.random() * foodEmojis.length)];
+    const color = colors[country] || '#45b7d1';
+    const encodedTitle = encodeURIComponent(title.substring(0, 20));
+    
+    return `https://dummyimage.com/400x400/${color.substring(1)}/ffffff&text=${emoji}%20${encodedTitle}`;
+  }
+
+  private async generateRecipesForCategory(category: RecipeCategory, count: number, userId: string): Promise<any[]> {
+    // Get user profile for personalization
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        profile: {
+          include: {
+            location: true,
+          },
+        },
+        cuisinePreferences: true,
+      },
+    });
+
+    // Define category-specific prompts and ingredients
+    const categoryPrompts = {
+      [RecipeCategory.BREAKFAST]: 'breakfast and morning meals',
+      [RecipeCategory.BREAKFAST_LOW_CARB]: 'low-carb breakfast and morning meals',
+      [RecipeCategory.BREAKFAST_HIGH_PROTEIN]: 'high-protein breakfast and morning meals',
+      [RecipeCategory.LUNCH]: 'lunch and midday meals',
+      [RecipeCategory.LUNCH_LOW_CARB]: 'low-carb lunch and midday meals',
+      [RecipeCategory.LUNCH_HIGH_PROTEIN]: 'high-protein lunch and midday meals',
+      [RecipeCategory.DINNER]: 'dinner and evening meals',
+      [RecipeCategory.DINNER_LOW_CARB]: 'low-carb dinner and evening meals',
+      [RecipeCategory.DINNER_HIGH_PROTEIN]: 'high-protein dinner and evening meals',
+      [RecipeCategory.LOW_CARB]: 'low-carb and ketogenic meals',
+      [RecipeCategory.HIGH_PROTEIN]: 'high-protein and fitness-focused meals',
+    };
+
+    const categoryKeywords = {
+      [RecipeCategory.BREAKFAST]: ['eggs', 'oats', 'fruits', 'yogurt', 'bread', 'milk'],
+      [RecipeCategory.BREAKFAST_LOW_CARB]: ['eggs', 'avocado', 'cheese', 'spinach', 'mushrooms'],
+      [RecipeCategory.BREAKFAST_HIGH_PROTEIN]: ['eggs', 'greek yogurt', 'protein powder', 'quinoa', 'nuts'],
+      [RecipeCategory.LUNCH]: ['chicken', 'vegetables', 'rice', 'beans', 'salad'],
+      [RecipeCategory.LUNCH_LOW_CARB]: ['chicken', 'fish', 'vegetables', 'avocado', 'cheese'],
+      [RecipeCategory.LUNCH_HIGH_PROTEIN]: ['chicken', 'beef', 'fish', 'beans', 'quinoa'],
+      [RecipeCategory.DINNER]: ['meat', 'vegetables', 'potatoes', 'pasta', 'rice'],
+      [RecipeCategory.DINNER_LOW_CARB]: ['fish', 'chicken', 'vegetables', 'cauliflower', 'broccoli'],
+      [RecipeCategory.DINNER_HIGH_PROTEIN]: ['beef', 'chicken', 'fish', 'lentils', 'tofu'],
+      [RecipeCategory.LOW_CARB]: ['vegetables', 'fish', 'chicken', 'avocado', 'cheese'],
+      [RecipeCategory.HIGH_PROTEIN]: ['chicken', 'beef', 'beans', 'quinoa', 'fish'],
+    };
+
+    const ingredients = categoryKeywords[category];
+    const cuisineStyle = user?.profile?.location?.country || 'International';
+    const userCuisines = user?.cuisinePreferences?.map(cp => cp.cuisine) || [];
+
+    const prompt = `You are a professional chef. Create exactly ${count} different ${categoryPrompts[category]} recipes.
+    
+Use these ingredients: ${ingredients.join(', ')}
+Cuisine style: ${cuisineStyle}
+${userCuisines.length > 0 ? `Preferred cuisines: ${userCuisines.join(', ')}` : ''}
+${user?.profile?.dietaryPreference && user.profile.dietaryPreference !== 'NONE' ? `Dietary preference: ${user.profile.dietaryPreference}` : ''}
+
+CRITICAL: Respond ONLY with valid JSON in this exact format:
+
+{
+  "recipes": [
+    {
+      "title": "Recipe Name",
+      "duration": "30 min",
+      "calories": "320 kcal",
+      "rating": "4.5",
+      "ingredients": [
+        "2 cups flour",
+        "1 tsp salt",
+        "3 eggs"
+      ],
+      "instructions": [
+        "Step 1: Detailed instruction here",
+        "Step 2: Another detailed instruction",
+        "Step 3: Continue with cooking steps"
+      ],
+      "proTips": [
+        "Professional tip 1 for better results",
+        "Professional tip 2 for enhanced flavor"
+      ]
+    }
+  ]
+}
+
+Requirements:
+- Create exactly ${count} different recipes
+- Each recipe must be suitable for ${categoryPrompts[category]}
+- Use realistic cooking times (15-60 minutes)
+- Use realistic calorie counts (200-800 kcal)
+- Use ratings between 4.0-5.0
+- Include 5-8 ingredients with specific measurements per recipe
+- Include 4-8 detailed cooking instructions per recipe
+- Include 2-4 professional cooking tips per recipe
+- Make each recipe distinctly different from the others`;
+
+    try {
+      let parsedResponse: any;
+      
+      // Try Gemini first
+      if (this.geminiApiKey) {
+        parsedResponse = await this.geminiService.generateRecipes(prompt);
+      } else if (this.deepseekApiKey) {
+        const aiResponse = await this.generateWithDeepSeek(prompt);
+        parsedResponse = this.geminiService.parseJsonFromResponse(aiResponse);
+      } else {
+        throw new Error('No AI provider available');
+      }
+
+      const aiRecipes = parsedResponse.recipes || [];
+
+      // Save recipes to database with generated images
+      const savedRecipes = [];
+      for (const aiRecipe of aiRecipes) {
+        try {
+          // Generate image for the recipe
+          let imageUrl = 'https://via.placeholder.com/400x400?text=Recipe+Image';
+          
+          try {
+            imageUrl = await this.cloudinaryService.generateRecipeImage(aiRecipe.title);
+          } catch (imageError) {
+            console.log(`Failed to generate image for ${aiRecipe.title}:`, imageError.message);
+            // Keep the default placeholder
+          }
+
+          const savedRecipe = await this.prisma.recipe.create({
+            data: {
+              title: aiRecipe.title,
+              duration: aiRecipe.duration,
+              calories: aiRecipe.calories,
+              rating: aiRecipe.rating,
+              imageUrl,
+              category,
+              ingredients: aiRecipe.ingredients || [],
+              instructions: aiRecipe.instructions || [],
+              proTips: aiRecipe.proTips || [],
+              generationCount: 1, // Track generation for trending
+            },
+          });
+
+          savedRecipes.push(savedRecipe);
+        } catch (error) {
+          console.error(`Failed to save recipe ${aiRecipe.title}:`, error);
+        }
+      }
+
+      return savedRecipes;
+    } catch (error) {
+      console.error('Failed to generate recipes for category:', error);
+      throw new HttpException(
+        'Failed to generate recipes',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
     }
   }
 }

@@ -10,6 +10,7 @@ import {
   Param,
   UseGuards,
   Request,
+  Delete,
 } from '@nestjs/common';
 import { 
   ApiTags, 
@@ -31,6 +32,12 @@ import {
   ValidationErrorDto, 
   ConflictErrorDto 
 } from './dto/onboard-response.dto';
+import { UserProfileResponseDto } from './dto/user-profile-response.dto';
+import { 
+  CuisinePreferencesResponseDto, 
+  AddCuisinePreferenceDto,
+  NextMealResponseDto
+} from './dto/cuisine-preferences.dto';
 
 @ApiTags('user')
 @Controller('api/user')
@@ -168,5 +175,122 @@ export class UserController {
     }
     
     return this.userService.getUserProfile(userId);
+  }
+
+  @Get('profile')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get current user profile for home screen',
+    description: 'Retrieve user subscription status and basic profile information for home screen display.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'User profile retrieved successfully',
+    type: UserProfileResponseDto,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or missing JWT token',
+  })
+  async getCurrentUserProfile(@Request() req: any): Promise<UserProfileResponseDto> {
+    const userId = req.user.id;
+    return this.userService.getCurrentUserProfile(userId);
+  }
+
+  @Get('cuisine-preferences')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get user cuisine preferences',
+    description: 'Retrieve user cuisine preferences for home screen pill display.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Cuisine preferences retrieved successfully',
+    type: CuisinePreferencesResponseDto,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or missing JWT token',
+  })
+  async getCuisinePreferences(@Request() req: any): Promise<CuisinePreferencesResponseDto> {
+    const userId = req.user.id;
+    return this.userService.getCuisinePreferences(userId);
+  }
+
+  @Post('cuisine-preferences')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Add cuisine preference',
+    description: 'Add a new cuisine preference for the user.',
+  })
+  @ApiBody({
+    type: AddCuisinePreferenceDto,
+    description: 'Cuisine preference to add',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Cuisine preference added successfully',
+    type: CuisinePreferencesResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid cuisine type or preference already exists',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or missing JWT token',
+  })
+  async addCuisinePreference(
+    @Body() addCuisineDto: AddCuisinePreferenceDto,
+    @Request() req: any
+  ): Promise<CuisinePreferencesResponseDto> {
+    const userId = req.user.id;
+    return this.userService.addCuisinePreference(userId, addCuisineDto.cuisine);
+  }
+
+  @Delete('cuisine-preferences/:cuisine')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Remove cuisine preference',
+    description: 'Remove a cuisine preference for the user.',
+  })
+  @ApiParam({
+    name: 'cuisine',
+    description: 'Cuisine type to remove',
+    example: 'italian',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Cuisine preference removed successfully',
+    type: CuisinePreferencesResponseDto,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or missing JWT token',
+  })
+  async removeCuisinePreference(
+    @Param('cuisine') cuisine: string,
+    @Request() req: any
+  ): Promise<CuisinePreferencesResponseDto> {
+    const userId = req.user.id;
+    return this.userService.removeCuisinePreference(userId, cuisine);
+  }
+
+  @Get('next-meal')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get next meal timing',
+    description: 'Get countdown timer information for the next meal.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Next meal timing retrieved successfully',
+    type: NextMealResponseDto,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or missing JWT token',
+  })
+  async getNextMeal(@Request() req: any): Promise<NextMealResponseDto> {
+    return this.userService.getNextMeal();
   }
 } 
