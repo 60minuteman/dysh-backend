@@ -23,6 +23,9 @@ RUN npx prisma generate
 # Build the application
 RUN yarn build
 
+# List the contents of dist directory for debugging
+RUN ls -la dist/
+
 # Production image, copy all the files and run the app
 FROM base AS runner
 WORKDIR /app
@@ -42,10 +45,13 @@ COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=nestjs:nodejs /app/prisma ./prisma
 
+# Create a startup script that runs migrations and starts the app
+RUN echo '#!/bin/sh\nnpx prisma migrate deploy && node dist/main.js' > /app/start.sh && chmod +x /app/start.sh && chown nestjs:nodejs /app/start.sh
+
 USER nestjs
 
 EXPOSE 3000
 
 ENV PORT 3000
 
-CMD ["node", "dist/main"] 
+CMD ["/app/start.sh"] 
