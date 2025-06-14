@@ -111,10 +111,22 @@ export class AdminService {
     };
   }
 
-  async getRecipes(page = 1, limit = 10) {
+  async getRecipes(page = 1, limit = 10, search?: string) {
     const skip = (page - 1) * limit;
+    
+    // Build search filter
+    const searchFilter = search ? {
+      OR: [
+        { title: { contains: search, mode: 'insensitive' as const } },
+        { country: { contains: search, mode: 'insensitive' as const } },
+        { duration: { contains: search, mode: 'insensitive' as const } },
+        { calories: { contains: search, mode: 'insensitive' as const } },
+      ]
+    } : {};
+
     const [recipes, total] = await Promise.all([
       this.prisma.recipe.findMany({
+        where: searchFilter,
         skip,
         take: limit,
         include: {
@@ -127,7 +139,7 @@ export class AdminService {
         },
         orderBy: { createdAt: 'desc' },
       }),
-      this.prisma.recipe.count(),
+      this.prisma.recipe.count({ where: searchFilter }),
     ]);
 
     return {
@@ -138,6 +150,7 @@ export class AdminService {
         total,
         pages: Math.ceil(total / limit),
       },
+      search,
     };
   }
 

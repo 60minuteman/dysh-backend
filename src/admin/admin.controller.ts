@@ -235,10 +235,17 @@ export class AdminController {
         .status-warning { color: #fbbf24; }
         .status-error { color: #ef4444; }
 
+        .table-container {
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+        }
+
         .table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 1rem;
         }
 
         .table th,
@@ -248,12 +255,75 @@ export class AdminController {
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             font-family: 'DM Mono', monospace;
             font-size: 0.85rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 200px;
         }
 
         .table th {
             background: rgba(255, 255, 255, 0.05);
             color: #ff6b35;
             font-weight: 500;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .table td.title {
+            max-width: 300px;
+            font-weight: 500;
+        }
+
+        .table td.category {
+            max-width: 120px;
+        }
+
+        .table td.explore-category {
+            max-width: 150px;
+            color: #10b981;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            padding: 1rem;
+        }
+
+        .pagination button {
+            padding: 0.5rem 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 0.25rem;
+            color: #e0e0e0;
+            cursor: pointer;
+            font-family: 'DM Mono', monospace;
+            font-size: 0.8rem;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: #ff6b35;
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination button.active {
+            background: #ff6b35;
+            color: #000;
+            border-color: #ff6b35;
+        }
+
+        .pagination-info {
+            color: #888;
+            font-size: 0.8rem;
+            margin: 0 1rem;
         }
 
         .footer {
@@ -535,8 +605,20 @@ export class AdminController {
         <div id="recipes" class="tab-content">
             <div class="card">
                 <h3>🍳 Recipe Management</h3>
-                <button class="button" onclick="loadRecipes()">Load Recipes</button>
-                <div id="recipes-content"></div>
+                <div style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; flex-wrap: wrap;">
+                    <input type="text" class="input" id="recipe-search" placeholder="🔍 Search recipes..." style="max-width: 300px; margin: 0;" oninput="searchRecipes()">
+                    <select class="input" id="recipe-limit" style="max-width: 120px; margin: 0;" onchange="loadRecipes()">
+                        <option value="10">10 per page</option>
+                        <option value="25">25 per page</option>
+                        <option value="50">50 per page</option>
+                        <option value="100">100 per page</option>
+                    </select>
+                    <button class="button" onclick="loadRecipes()">🔄 Refresh</button>
+                    <button class="button secondary" onclick="exportRecipes()">📊 Export</button>
+                </div>
+                <div id="recipes-content">
+                    <p style="color: #888; text-align: center; padding: 2rem;">Click "Refresh" to load recipes</p>
+                </div>
             </div>
         </div>
 
@@ -597,6 +679,7 @@ export class AdminController {
                 <div class="card">
                     <h3>🎯 Generate New Recipes</h3>
                     <select class="input" id="recipe-category">
+                        <option value="trending">🔥 Trending</option>
                         <option value="chefs-pick">Chef's Pick</option>
                         <option value="thirty-min-meals">30-Min Meals</option>
                         <option value="healthy-light">Healthy & Light</option>
@@ -1103,43 +1186,187 @@ Expires: \${result.data.expiresIn}
         }
 
         // Recipe management
-        async function loadRecipes() {
+        let currentRecipePage = 1;
+        let searchTimeout = null;
+
+        async function loadRecipes(page = 1) {
             const recipesContent = document.getElementById('recipes-content');
+            const search = document.getElementById('recipe-search').value.trim();
+            const limit = document.getElementById('recipe-limit').value;
+            
+            currentRecipePage = page;
             recipesContent.innerHTML = '<div class="loading"></div> Loading recipes...';
             
-            const result = await apiCall('GET', '/admin/recipes');
+            const params = new URLSearchParams({
+                page: page.toString(),
+                limit: limit
+            });
+            
+            if (search) {
+                params.append('search', search);
+            }
+            
+            const result = await apiCall('GET', \`/admin/recipes?\${params.toString()}\`);
             if (result.ok) {
-                const { recipes, pagination } = result.data;
-                recipesContent.innerHTML = \`
-                    <p>Total Recipes: \${pagination.total} | Page \${pagination.page} of \${pagination.pages}</p>
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Title</th>
-                                <th>Category</th>
-                                <th>Duration</th>
-                                <th>Calories</th>
-                                <th>Interactions</th>
-                                <th>Created</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            \${recipes.map(recipe => \`
+                const { recipes, pagination, search: searchTerm } = result.data;
+                
+                if (recipes.length === 0) {
+                    recipesContent.innerHTML = \`
+                        <p style="color: #888; text-align: center; padding: 2rem;">
+                            \${searchTerm ? \`No recipes found for "\${searchTerm}"\` : 'No recipes found'}
+                        </p>
+                    \`;
+                    return;
+                }
+
+                const tableHtml = \`
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
                                 <tr>
-                                    <td>\${recipe.title}</td>
-                                    <td>\${recipe.category}</td>
-                                    <td>\${recipe.duration}</td>
-                                    <td>\${recipe.calories}</td>
-                                    <td>\${recipe._count.userInteractions}</td>
-                                    <td>\${new Date(recipe.createdAt).toLocaleDateString()}</td>
+                                    <th>Title</th>
+                                    <th>Category</th>
+                                    <th>Explore Category</th>
+                                    <th>Country</th>
+                                    <th>Duration</th>
+                                    <th>Calories</th>
+                                    <th>Rating</th>
+                                    <th>Interactions</th>
+                                    <th>Created</th>
                                 </tr>
-                            \`).join('')}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                \${recipes.map(recipe => \`
+                                    <tr>
+                                        <td class="title" title="\${recipe.title}">\${recipe.title}</td>
+                                        <td class="category">\${recipe.category}</td>
+                                        <td class="explore-category">\${recipe.exploreCategory || '-'}</td>
+                                        <td>\${recipe.country || 'International'}</td>
+                                        <td>\${recipe.duration}</td>
+                                        <td>\${recipe.calories}</td>
+                                        <td>\${recipe.rating}</td>
+                                        <td>\${recipe._count.userInteractions}</td>
+                                        <td>\${new Date(recipe.createdAt).toLocaleDateString()}</td>
+                                    </tr>
+                                \`).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                \`;
+
+                const paginationHtml = createPagination(pagination);
+                
+                recipesContent.innerHTML = \`
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <p style="color: #888;">
+                            \${searchTerm ? \`Search results for "\${searchTerm}": \` : ''}\${pagination.total} recipes found
+                        </p>
+                        <p style="color: #888; font-size: 0.8rem;">
+                            Page \${pagination.page} of \${pagination.pages}
+                        </p>
+                    </div>
+                    \${tableHtml}
+                    \${paginationHtml}
                 \`;
             } else {
                 recipesContent.innerHTML = \`<div class="status-error">Error: \${result.data.message || 'Failed to load recipes'}</div>\`;
             }
+        }
+
+        function createPagination(pagination) {
+            const { page, pages, total } = pagination;
+            
+            if (pages <= 1) return '';
+            
+            let paginationButtons = [];
+            
+            // Previous button
+            paginationButtons.push(\`
+                <button onclick="loadRecipes(\${page - 1})" \${page <= 1 ? 'disabled' : ''}>
+                    ← Previous
+                </button>
+            \`);
+            
+            // Page numbers
+            const startPage = Math.max(1, page - 2);
+            const endPage = Math.min(pages, page + 2);
+            
+            if (startPage > 1) {
+                paginationButtons.push(\`<button onclick="loadRecipes(1)">1</button>\`);
+                if (startPage > 2) {
+                    paginationButtons.push(\`<span style="color: #888;">...</span>\`);
+                }
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                paginationButtons.push(\`
+                    <button onclick="loadRecipes(\${i})" \${i === page ? 'class="active"' : ''}>
+                        \${i}
+                    </button>
+                \`);
+            }
+            
+            if (endPage < pages) {
+                if (endPage < pages - 1) {
+                    paginationButtons.push(\`<span style="color: #888;">...</span>\`);
+                }
+                paginationButtons.push(\`<button onclick="loadRecipes(\${pages})">\${pages}</button>\`);
+            }
+            
+            // Next button
+            paginationButtons.push(\`
+                <button onclick="loadRecipes(\${page + 1})" \${page >= pages ? 'disabled' : ''}>
+                    Next →
+                </button>
+            \`);
+            
+            return \`
+                <div class="pagination">
+                    \${paginationButtons.join('')}
+                </div>
+            \`;
+        }
+
+        function searchRecipes() {
+            // Debounce search to avoid too many API calls
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                loadRecipes(1); // Reset to page 1 when searching
+            }, 500);
+        }
+
+        function exportRecipes() {
+            const search = document.getElementById('recipe-search').value.trim();
+            const params = new URLSearchParams({ limit: '1000' });
+            if (search) params.append('search', search);
+            
+            apiCall('GET', \`/admin/recipes?\${params.toString()}\`)
+                .then(result => {
+                    if (result.ok) {
+                        const data = {
+                            timestamp: new Date().toISOString(),
+                            search: search || null,
+                            total: result.data.pagination.total,
+                            recipes: result.data.recipes
+                        };
+                        
+                        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = \`recipes-\${search ? 'search-' : ''}\${new Date().toISOString().split('T')[0]}.json\`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    } else {
+                        alert('Failed to export recipes');
+                    }
+                })
+                .catch(error => {
+                    console.error('Export error:', error);
+                    alert('Failed to export recipes');
+                });
         }
 
         // API Testing
@@ -1319,6 +1546,10 @@ Status: \${apiResult.status} \${apiResult.ok ? '✅' : '❌'}
                 const stats = result.data;
                 exploreStatsContent.innerHTML = \`
                     <div class="stat">
+                        <span class="stat-label">🔥 Trending:</span>
+                        <span class="stat-value">\${stats.trending}</span>
+                    </div>
+                    <div class="stat">
                         <span class="stat-label">Chef's Pick:</span>
                         <span class="stat-value">\${stats['chefs-pick']}</span>
                     </div>
@@ -1448,8 +1679,12 @@ Generated Recipes:
   @Get('admin/recipes')
   @ApiOperation({ summary: 'Get recipes list' })
   @ApiResponse({ status: 200, description: 'Recipes retrieved successfully' })
-  async getRecipes(@Query('page') page = '1', @Query('limit') limit = '10') {
-    return this.adminService.getRecipes(parseInt(page), parseInt(limit));
+  async getRecipes(
+    @Query('page') page = '1', 
+    @Query('limit') limit = '10',
+    @Query('search') search?: string
+  ) {
+    return this.adminService.getRecipes(parseInt(page), parseInt(limit), search);
   }
 
   @Get('admin/logs')
