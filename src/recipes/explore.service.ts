@@ -19,7 +19,7 @@ export class ExploreService {
     this.geminiApiKey = this.configService.get<string>('GEMINI_API_KEY');
   }
 
-  async getExploreRecipes(category: string, limit: number, userId: string): Promise<ExploreResponseDto> {
+  async getExploreRecipes(category: string, limit: number, userId: string | null): Promise<ExploreResponseDto> {
     // Validate category
     const validCategories = [
       'trending', 'thirty-min-meals', 'chefs-pick', 'occasion', 
@@ -59,7 +59,7 @@ export class ExploreService {
     };
   }
 
-  private async getTrendingRecipes(limit: number, userId: string) {
+  private async getTrendingRecipes(limit: number, userId: string | null) {
     // Get most generated recipes as trending
     const trendingRecipes = await this.prisma.recipe.findMany({
       where: {
@@ -70,10 +70,10 @@ export class ExploreService {
       },
       take: limit,
       include: {
-        userInteractions: {
+        userInteractions: userId ? {
           where: { userId },
           select: { isLiked: true },
-        },
+        } : false,
       },
     });
 
@@ -88,21 +88,21 @@ export class ExploreService {
       ingredients: recipe.ingredients,
       instructions: recipe.instructions,
       proTips: recipe.proTips,
-      isLiked: recipe.userInteractions.length > 0 ? recipe.userInteractions[0].isLiked : false,
+      isLiked: userId && recipe.userInteractions && recipe.userInteractions.length > 0 ? recipe.userInteractions[0].isLiked : false,
     }));
   }
 
-  private async getOrGenerateExploreRecipes(category: ExploreCategory, limit: number, userId: string) {
+  private async getOrGenerateExploreRecipes(category: ExploreCategory, limit: number, userId: string | null) {
     // Check existing recipes for this category
     let existingRecipes = await this.prisma.recipe.findMany({
       where: { exploreCategory: category },
       take: limit,
       orderBy: { createdAt: 'desc' },
       include: {
-        userInteractions: {
+        userInteractions: userId ? {
           where: { userId },
           select: { isLiked: true },
-        },
+        } : false,
       },
     });
 
@@ -124,18 +124,21 @@ export class ExploreService {
       ingredients: recipe.ingredients,
       instructions: recipe.instructions,
       proTips: recipe.proTips,
-      isLiked: recipe.userInteractions?.length > 0 ? recipe.userInteractions[0].isLiked : false,
+      isLiked: userId && recipe.userInteractions?.length > 0 ? recipe.userInteractions[0].isLiked : false,
     }));
   }
 
-  private async generateExploreRecipes(category: ExploreCategory, count: number, userId: string) {
-    // Get user dietary preferences
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        profile: true,
-      },
-    });
+  private async generateExploreRecipes(category: ExploreCategory, count: number, userId: string | null) {
+    // Get user dietary preferences if authenticated
+    let user = null;
+    if (userId) {
+      user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          profile: true,
+        },
+      });
+    }
 
     // Define diverse countries for recipe generation
     const countries = [
@@ -170,7 +173,7 @@ export class ExploreService {
 Requirements:
 - Each recipe must be from a different country in the list
 - ${categoryConstraints[category]}
-- ${user?.profile?.dietaryPreference && user.profile.dietaryPreference !== 'NONE' ? `ALL recipes must be ${user.profile.dietaryPreference.toLowerCase()}-friendly` : ''}
+- ${user?.profile?.dietaryPreference && user.profile.dietaryPreference !== 'NONE' ? `ALL recipes must be ${user.profile.dietaryPreference.toLowerCase()}-friendly` : 'Include diverse dietary options (vegetarian, meat-based, etc.)'}
 - Each recipe should authentically represent its country's cuisine
 
 CRITICAL: Respond ONLY with valid JSON in this exact format:
@@ -243,13 +246,10 @@ Create exactly ${count} recipes, each from: ${selectedCountries.join(', ')} resp
               proTips: aiRecipe.proTips || [],
               generationCount: 1,
             },
-            include: {
-              userInteractions: {
-                where: { userId },
-                select: { isLiked: true },
-              },
-            },
           });
+
+          // Add isLiked property (new recipes are never liked initially)
+          (savedRecipe as any).isLiked = false;
 
           savedRecipes.push(savedRecipe);
         } catch (error) {

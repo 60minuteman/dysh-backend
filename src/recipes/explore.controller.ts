@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Delete, UseGuards, Request, Param, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Delete, UseGuards, Request, Param, Query, UnauthorizedException } from '@nestjs/common';
 import { 
   ApiTags, 
   ApiOperation, 
@@ -20,11 +20,9 @@ export class ExploreController {
   constructor(private readonly exploreService: ExploreService) {}
 
   @Get(':category')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Get explore recipes by category',
-    description: `Discover recipes from around the world in various categories.
+    summary: 'Get explore recipes by category (No auth required)',
+    description: `Discover recipes from around the world in various categories. Authentication is optional - without auth, all recipes show as not liked.
     
     **Categories Available:**
     - **trending** - Popular recipes from platform users
@@ -37,9 +35,9 @@ export class ExploreController {
     
     **Features:**
     - Recipes from 15+ countries worldwide
-    - Respects user dietary preferences
+    - Works without authentication for browsing
     - Full details: ingredients, instructions, pro tips
-    - Shows if user has liked each recipe`,
+    - Shows liked status only for authenticated users`,
   })
   @ApiParam({
     name: 'category',
@@ -62,24 +60,20 @@ export class ExploreController {
   @ApiBadRequestResponse({
     description: 'Invalid category provided',
   })
-  @ApiUnauthorizedResponse({
-    description: 'Authentication required',
-  })
   async getExploreRecipes(
     @Param('category') category: string,
     @Request() req: any,
     @Query('limit') limit?: number
   ): Promise<ExploreResponseDto> {
-    const userId = req.user.id;
+    // Extract userId from token if present, otherwise null for guest users
+    const userId = req.user?.id || null;
     return this.exploreService.getExploreRecipes(category, limit || 10, userId);
   }
 
   @Post(':recipeId/like')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Like a recipe (add to cookbook)',
-    description: 'Swipe right action - adds recipe to user cookbook for future reference.',
+    summary: 'Like a recipe (add to cookbook) - Authentication required',
+    description: 'Swipe right action - adds recipe to user cookbook. Requires user to be logged in.',
   })
   @ApiParam({
     name: 'recipeId',
@@ -96,23 +90,39 @@ export class ExploreController {
       },
     },
   })
-  @ApiUnauthorizedResponse({
-    description: 'Authentication required',
+  @ApiResponse({
+    status: 401,
+    description: 'Authentication required to like recipes',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: false },
+        message: { type: 'string', example: 'Please sign up or log in to save recipes to your cookbook' },
+        authRequired: { type: 'boolean', example: true },
+      },
+    },
   })
   async likeRecipe(
     @Param('recipeId') recipeId: string,
     @Request() req: any
-  ): Promise<{ success: boolean }> {
+  ): Promise<{ success: boolean; message?: string; authRequired?: boolean }> {
+    // Check if user is authenticated
+    if (!req.user?.id) {
+      return {
+        success: false,
+        message: 'Please sign up or log in to save recipes to your cookbook',
+        authRequired: true
+      };
+    }
+    
     const userId = req.user.id;
     return this.exploreService.likeRecipe(recipeId, userId);
   }
 
   @Delete(':recipeId/like')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Unlike a recipe (remove from cookbook)',
-    description: 'Remove recipe from user cookbook - can be triggered by swipe left or manual removal.',
+    summary: 'Unlike a recipe (remove from cookbook) - Authentication required',
+    description: 'Remove recipe from user cookbook. Requires user to be logged in.',
   })
   @ApiParam({
     name: 'recipeId',
@@ -129,13 +139,31 @@ export class ExploreController {
       },
     },
   })
-  @ApiUnauthorizedResponse({
-    description: 'Authentication required',
+  @ApiResponse({
+    status: 401,
+    description: 'Authentication required to unlike recipes',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: false },
+        message: { type: 'string', example: 'Please sign up or log in to manage your cookbook' },
+        authRequired: { type: 'boolean', example: true },
+      },
+    },
   })
   async unlikeRecipe(
     @Param('recipeId') recipeId: string,
     @Request() req: any
-  ): Promise<{ success: boolean }> {
+  ): Promise<{ success: boolean; message?: string; authRequired?: boolean }> {
+    // Check if user is authenticated
+    if (!req.user?.id) {
+      return {
+        success: false,
+        message: 'Please sign up or log in to manage your cookbook',
+        authRequired: true
+      };
+    }
+    
     const userId = req.user.id;
     return this.exploreService.unlikeRecipe(recipeId, userId);
   }
