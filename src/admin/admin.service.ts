@@ -1,13 +1,61 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
+import { ExploreService } from '../recipes/explore.service';
+import { ExploreCategory } from '@prisma/client';
+
+export interface LogEntry {
+  id: string;
+  timestamp: string;
+  level: 'LOG' | 'ERROR' | 'WARN' | 'DEBUG';
+  message: string;
+  context?: string;
+  method?: string;
+  url?: string;
+  statusCode?: number;
+  responseTime?: number;
+  userAgent?: string;
+}
 
 @Injectable()
 export class AdminService {
+  private logs: LogEntry[] = [];
+  private maxLogs = 1000; // Keep only last 1000 logs
+
   constructor(
     private prisma: PrismaService,
     private authService: AuthService,
+    private exploreService: ExploreService,
   ) {}
+
+  // Log capture methods
+  addLog(entry: Omit<LogEntry, 'id' | 'timestamp'>) {
+    const logEntry: LogEntry = {
+      id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: new Date().toISOString(),
+      ...entry,
+    };
+
+    this.logs.unshift(logEntry); // Add to beginning for newest first
+
+    // Keep only the last maxLogs entries
+    if (this.logs.length > this.maxLogs) {
+      this.logs = this.logs.slice(0, this.maxLogs);
+    }
+  }
+
+  getLogs(limit = 100) {
+    return {
+      logs: this.logs.slice(0, limit),
+      total: this.logs.length,
+      maxLogs: this.maxLogs,
+    };
+  }
+
+  clearLogs() {
+    this.logs = [];
+    return { success: true, message: 'Logs cleared successfully' };
+  }
 
   async getDashboardStats() {
     const [totalUsers, totalRecipes, completedOnboarding, recentUsers] = await Promise.all([
@@ -113,5 +161,57 @@ export class AdminService {
         timestamp: new Date().toISOString(),
       };
     }
+  }
+
+  async generateExploreRecipes(
+    category: string,
+    count: number,
+    countries?: string[],
+    mealType?: 'BREAKFAST' | 'LUNCH' | 'DINNER'
+  ) {
+    const categoryMap = {
+      'trending': ExploreCategory.TRENDING,
+      'thirty-min-meals': ExploreCategory.THIRTY_MIN_MEALS,
+      'chefs-pick': ExploreCategory.CHEFS_PICK,
+      'occasion': ExploreCategory.OCCASION,
+      'healthy-light': ExploreCategory.HEALTHY_LIGHT,
+      'comfort-food': ExploreCategory.COMFORT_FOOD,
+      'one-pot-meals': ExploreCategory.ONE_POT_MEALS,
+    };
+
+    const exploreCategory = categoryMap[category];
+    if (!exploreCategory) {
+      throw new Error(`Invalid category: ${category}`);
+    }
+
+    return this.exploreService.adminGenerateExploreRecipes(
+      exploreCategory,
+      count,
+      countries,
+      mealType
+    );
+  }
+
+  async getExploreRecipeStats() {
+    const stats = await Promise.all([
+      this.prisma.recipe.count({ where: { exploreCategory: ExploreCategory.TRENDING } }),
+      this.prisma.recipe.count({ where: { exploreCategory: ExploreCategory.THIRTY_MIN_MEALS } }),
+      this.prisma.recipe.count({ where: { exploreCategory: ExploreCategory.CHEFS_PICK } }),
+      this.prisma.recipe.count({ where: { exploreCategory: ExploreCategory.OCCASION } }),
+      this.prisma.recipe.count({ where: { exploreCategory: ExploreCategory.HEALTHY_LIGHT } }),
+      this.prisma.recipe.count({ where: { exploreCategory: ExploreCategory.COMFORT_FOOD } }),
+      this.prisma.recipe.count({ where: { exploreCategory: ExploreCategory.ONE_POT_MEALS } }),
+    ]);
+
+    return {
+      trending: stats[0],
+      'thirty-min-meals': stats[1],
+      'chefs-pick': stats[2],
+      occasion: stats[3],
+      'healthy-light': stats[4],
+      'comfort-food': stats[5],
+      'one-pot-meals': stats[6],
+      total: stats.reduce((sum, count) => sum + count, 0),
+    };
   }
 } 

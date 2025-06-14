@@ -43,15 +43,8 @@ export class ExploreService {
 
     const exploreCategory = categoryMap[category];
 
-    let recipes;
-    
-    if (exploreCategory === ExploreCategory.TRENDING) {
-      // For trending, show existing popular recipes
-      recipes = await this.getTrendingRecipes(limit, userId);
-    } else {
-      // For other categories, get or generate new recipes
-      recipes = await this.getOrGenerateExploreRecipes(exploreCategory, limit, userId);
-    }
+    // Always serve from existing database recipes (no more on-demand generation)
+    const recipes = await this.getExistingExploreRecipes(exploreCategory, limit, userId);
 
     return {
       recipes,
@@ -59,61 +52,64 @@ export class ExploreService {
     };
   }
 
-  private async getTrendingRecipes(limit: number, userId: string | null) {
-    // Get most generated recipes as trending
-    const trendingRecipes = await this.prisma.recipe.findMany({
-      where: {
-        generationCount: { gt: 1 }, // Only recipes that have been generated multiple times
-      },
-      orderBy: {
-        generationCount: 'desc',
-      },
-      take: limit,
-      include: {
-        userInteractions: userId ? {
-          where: { userId },
-          select: { isLiked: true },
-        } : false,
-      },
-    });
+  private async getExistingExploreRecipes(category: ExploreCategory, limit: number, userId: string | null) {
+    let whereClause: any;
 
-    return trendingRecipes.map(recipe => ({
-      id: recipe.id,
-      title: recipe.title,
-      duration: recipe.duration,
-      calories: recipe.calories,
-      rating: recipe.rating,
-      imageUrl: recipe.imageUrl,
-      country: recipe.country || 'International',
-      ingredients: recipe.ingredients,
-      instructions: recipe.instructions,
-      proTips: recipe.proTips,
-      isLiked: userId && recipe.userInteractions && recipe.userInteractions.length > 0 ? recipe.userInteractions[0].isLiked : false,
-    }));
-  }
-
-  private async getOrGenerateExploreRecipes(category: ExploreCategory, limit: number, userId: string | null) {
-    // Check existing recipes for this category
-    let existingRecipes = await this.prisma.recipe.findMany({
-      where: { exploreCategory: category },
-      take: limit,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        userInteractions: userId ? {
-          where: { userId },
-          select: { isLiked: true },
-        } : false,
-      },
-    });
-
-    // If we don't have enough, generate new ones
-    if (existingRecipes.length < limit) {
-      const recipesToGenerate = limit - existingRecipes.length;
-      const newRecipes = await this.generateExploreRecipes(category, recipesToGenerate, userId);
-      existingRecipes = [...newRecipes, ...existingRecipes];
+    if (category === ExploreCategory.TRENDING) {
+      // For trending, show recipes specifically marked as trending
+      // If no trending recipes exist, fall back to most liked recipes
+      const trendingCount = await this.prisma.recipe.count({
+        where: { exploreCategory: ExploreCategory.TRENDING }
+      });
+      
+      if (trendingCount > 0) {
+        whereClause = { exploreCategory: ExploreCategory.TRENDING };
+      } else {
+        // Fallback to most liked recipes if no trending recipes exist
+        whereClause = {
+          exploreCategory: { not: null }, // Any explore category
+          userInteractions: {
+            some: {
+              isLiked: true,
+            },
+          },
+        };
+      }
+    } else {
+      // For specific categories, show recipes from that category
+      whereClause = { exploreCategory: category };
     }
 
-    return existingRecipes.slice(0, limit).map(recipe => ({
+    const recipes = await this.prisma.recipe.findMany({
+      where: whereClause,
+      take: limit,
+      orderBy: category === ExploreCategory.TRENDING 
+        ? [
+            // For trending, order by likes count and recency
+            { userInteractions: { _count: 'desc' } },
+            { createdAt: 'desc' }
+          ]
+        : [
+            // For other categories, randomize the order for variety
+            { createdAt: 'desc' }
+          ],
+      include: {
+        userInteractions: userId ? {
+          where: { userId },
+          select: { isLiked: true },
+        } : false,
+        _count: {
+          select: { userInteractions: true },
+        },
+      },
+    });
+
+    // Shuffle recipes for variety (except trending which should stay ordered by popularity)
+    const shuffledRecipes = category === ExploreCategory.TRENDING 
+      ? recipes 
+      : this.shuffleArray(recipes);
+
+    return shuffledRecipes.map(recipe => ({
       id: recipe.id,
       title: recipe.title,
       duration: recipe.duration,
@@ -128,26 +124,26 @@ export class ExploreService {
     }));
   }
 
-  private async generateExploreRecipes(category: ExploreCategory, count: number, userId: string | null) {
-    // Get user dietary preferences if authenticated
-    let user = null;
-    if (userId) {
-      user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        include: {
-          profile: true,
-        },
-      });
-    }
-
-    // Define diverse countries for recipe generation
-    const countries = [
+  // Admin method for generating new explore recipes
+  async adminGenerateExploreRecipes(
+    category: ExploreCategory, 
+    count: number, 
+    countries?: string[], 
+    mealType?: 'BREAKFAST' | 'LUNCH' | 'DINNER'
+  ) {
+    // Use provided countries or default diverse set
+    const defaultCountries = [
       'Italy', 'France', 'Japan', 'Mexico', 'India', 'Thailand', 'Greece', 
       'Morocco', 'Brazil', 'Korea', 'Lebanon', 'Nigeria', 'Peru', 'Turkey', 'China'
     ];
+    
+    const recipesCountries = countries && countries.length > 0 
+      ? countries 
+      : this.shuffleArray(defaultCountries).slice(0, count);
 
     // Category-specific prompts and characteristics
     const categoryPrompts = {
+      [ExploreCategory.TRENDING]: 'popular trending meals that are currently viral and in-demand',
       [ExploreCategory.THIRTY_MIN_MEALS]: 'quick 30-minute meals that are easy to prepare',
       [ExploreCategory.CHEFS_PICK]: 'chef-recommended signature dishes with complex flavors',
       [ExploreCategory.OCCASION]: 'special occasion meals perfect for celebrations and gatherings',
@@ -157,6 +153,7 @@ export class ExploreService {
     };
 
     const categoryConstraints = {
+      [ExploreCategory.TRENDING]: 'modern, Instagram-worthy presentation, popular ingredients and techniques',
       [ExploreCategory.THIRTY_MIN_MEALS]: 'cooking time must be 30 minutes or less',
       [ExploreCategory.CHEFS_PICK]: 'sophisticated techniques and premium ingredients',
       [ExploreCategory.OCCASION]: 'elegant presentation suitable for special events',
@@ -165,15 +162,34 @@ export class ExploreService {
       [ExploreCategory.ONE_POT_MEALS]: 'everything cooked in a single pot, pan, or cooking vessel',
     };
 
-    // Select random countries for diversity
-    const selectedCountries = this.shuffleArray(countries).slice(0, count);
+    // Meal type specific prompts
+    const mealTypePrompts = {
+      'BREAKFAST': 'breakfast dishes that are energizing and perfect for starting the day',
+      'LUNCH': 'lunch meals that are satisfying and balanced for midday dining',
+      'DINNER': 'dinner recipes that are hearty and perfect for evening meals'
+    };
 
-    const prompt = `You are a world-renowned chef specializing in international cuisine. Create exactly ${count} different ${categoryPrompts[category]} from these countries: ${selectedCountries.join(', ')}.
+    const mealTypeConstraints = {
+      'BREAKFAST': 'suitable for breakfast time, energizing, 200-500 calories',
+      'LUNCH': 'suitable for lunch, balanced and filling, 400-700 calories',
+      'DINNER': 'suitable for dinner, satisfying and complete, 500-800 calories'
+    };
+
+    // Build the prompt
+    const basePrompt = mealType 
+      ? `${mealTypePrompts[mealType]} that are also ${categoryPrompts[category]}`
+      : categoryPrompts[category];
+
+    const baseConstraints = mealType 
+      ? `${mealTypeConstraints[mealType]} AND ${categoryConstraints[category]}`
+      : categoryConstraints[category];
+
+    const prompt = `You are a world-renowned chef specializing in international cuisine. Create exactly ${count} different ${basePrompt} from these countries: ${recipesCountries.join(', ')}.
 
 Requirements:
 - Each recipe must be from a different country in the list
-- ${categoryConstraints[category]}
-- ${user?.profile?.dietaryPreference && user.profile.dietaryPreference !== 'NONE' ? `ALL recipes must be ${user.profile.dietaryPreference.toLowerCase()}-friendly` : 'Include diverse dietary options (vegetarian, meat-based, etc.)'}
+- ${baseConstraints}
+- Include diverse dietary options (vegetarian, meat-based, etc.)
 - Each recipe should authentically represent its country's cuisine
 
 CRITICAL: Respond ONLY with valid JSON in this exact format:
@@ -202,7 +218,7 @@ CRITICAL: Respond ONLY with valid JSON in this exact format:
   ]
 }
 
-Create exactly ${count} recipes, each from: ${selectedCountries.join(', ')} respectively.`;
+Create exactly ${count} recipes, each from: ${recipesCountries.join(', ')} respectively.`;
 
     try {
       let parsedResponse: any;
@@ -219,7 +235,7 @@ Create exactly ${count} recipes, each from: ${selectedCountries.join(', ')} resp
       const savedRecipes = [];
       for (let i = 0; i < aiRecipes.length; i++) {
         const aiRecipe = aiRecipes[i];
-        const country = selectedCountries[i] || 'International';
+        const country = recipesCountries[i] || 'International';
 
         try {
           // Generate themed image
@@ -231,6 +247,10 @@ Create exactly ${count} recipes, each from: ${selectedCountries.join(', ')} resp
             console.log(`Failed to generate image for ${aiRecipe.title}:`, imageError.message);
           }
 
+          const recipeCategory = mealType 
+            ? this.mapMealTypeToRecipeCategory(mealType)
+            : this.mapExploreToRecipeCategory(category);
+
           const savedRecipe = await this.prisma.recipe.create({
             data: {
               title: aiRecipe.title,
@@ -240,7 +260,7 @@ Create exactly ${count} recipes, each from: ${selectedCountries.join(', ')} resp
               imageUrl,
               country: aiRecipe.country || country,
               exploreCategory: category,
-              category: this.mapExploreToRecipeCategory(category),
+              category: recipeCategory,
               ingredients: aiRecipe.ingredients || [],
               instructions: aiRecipe.instructions || [],
               proTips: aiRecipe.proTips || [],
@@ -257,7 +277,12 @@ Create exactly ${count} recipes, each from: ${selectedCountries.join(', ')} resp
         }
       }
 
-      return savedRecipes;
+      return {
+        success: true,
+        generated: savedRecipes.length,
+        recipes: savedRecipes,
+        message: `Successfully generated ${savedRecipes.length} ${category.toLowerCase().replace('_', ' ')} recipes`,
+      };
     } catch (error) {
       console.error('Failed to generate explore recipes:', error);
       throw new HttpException(
@@ -384,6 +409,16 @@ Create exactly ${count} recipes, each from: ${selectedCountries.join(', ')} resp
     };
     
     return mapping[exploreCategory] || RecipeCategory.DINNER;
+  }
+
+  private mapMealTypeToRecipeCategory(mealType: 'BREAKFAST' | 'LUNCH' | 'DINNER'): RecipeCategory {
+    const mapping = {
+      'BREAKFAST': RecipeCategory.BREAKFAST,
+      'LUNCH': RecipeCategory.LUNCH,
+      'DINNER': RecipeCategory.DINNER,
+    };
+    
+    return mapping[mealType];
   }
 
   private shuffleArray<T>(array: T[]): T[] {

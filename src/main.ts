@@ -2,7 +2,6 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
-import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -14,10 +13,7 @@ async function bootstrap() {
     forbidNonWhitelisted: true,
   }));
 
-  // Enable request/response logging in development mode
-  if (process.env.NODE_ENV === 'development') {
-    app.useGlobalInterceptors(new LoggingInterceptor());
-  }
+  // Note: LoggingInterceptor is now configured as a global interceptor via APP_INTERCEPTOR in AppModule
 
   // Swagger configuration
   const config = new DocumentBuilder()
@@ -69,9 +65,6 @@ async function bootstrap() {
   console.log(`🚀 Application is running on: http://localhost:${port}`);
   console.log(`📚 API Documentation available at: http://localhost:${port}/api/docs`);
   console.log(`🔐 Authentication: Apple Sign-In (iOS) & Google Sign-In (Android)`);
-  
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`🔍 Request/Response logging enabled for development mode`);
-  }
+  console.log(`🔍 Request/Response logging enabled for development mode`);
 }
 bootstrap();

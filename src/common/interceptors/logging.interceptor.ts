@@ -8,64 +8,145 @@ import {
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { Request, Response } from 'express';
+import { AdminService } from '../../admin/admin.service';
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
   private readonly logger = new Logger('HTTP');
 
+  constructor(private adminService: AdminService) {}
+
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    // Only log in development mode
-    if (process.env.NODE_ENV !== 'development') {
-      return next.handle();
+    if (context.getType() === 'http') {
+      const request = context.switchToHttp().getRequest<Request>();
+      const response = context.switchToHttp().getResponse<Response>();
+      const { method, url, headers } = request;
+      const userAgent = headers['user-agent'] || '';
+      const startTime = Date.now();
+
+      // Only log user-initiated app requests (exclude admin panel requests)
+      const isAppRequest = this.isAppRequest(url);
+
+      // Log request
+      this.logger.log(`🔵 ${method} ${url}`);
+      
+      // Log query params if they exist
+      if (Object.keys(request.query).length > 0) {
+        this.logger.log(`📋 Query: ${JSON.stringify(request.query)}`);
+      }
+      
+      // Log user agent
+      this.logger.log(`🌐 User-Agent: ${userAgent}`);
+
+      // Add request log to admin service (only for app requests)
+      if (isAppRequest) {
+        this.adminService.addLog({
+          level: 'LOG',
+          message: `${method} ${url}`,
+          context: 'HTTP_REQUEST',
+          method,
+          url,
+          userAgent,
+        });
+      }
+
+      return next.handle().pipe(
+        tap({
+          next: (data) => {
+            const responseTime = Date.now() - startTime;
+            const statusCode = response.statusCode;
+            
+            // Log response
+            this.logger.log(`🟢 ${method} ${url} - ${statusCode} - ${responseTime}ms`);
+            
+            // Log response data (truncated for readability)
+            const responseData = typeof data === 'object' ? JSON.stringify(data) : String(data);
+            const truncatedData = responseData.length > 500 ? 
+              responseData.substring(0, 500) + '...' : responseData;
+            this.logger.log(`📤 Response: ${truncatedData}`);
+            this.logger.log('────────────────────────────────────────────────────────────────────────────────');
+
+            // Add response log to admin service (only for app requests)
+            if (isAppRequest) {
+              this.adminService.addLog({
+                level: 'LOG',
+                message: `${method} ${url} - ${statusCode} - ${responseTime}ms`,
+                context: 'HTTP_RESPONSE',
+                method,
+                url,
+                statusCode,
+                responseTime,
+                userAgent,
+              });
+            }
+          },
+          error: (error) => {
+            const responseTime = Date.now() - startTime;
+            const statusCode = response.statusCode || 500;
+            
+            // Log error
+            this.logger.error(`🔴 ${method} ${url} - ${statusCode} - ${responseTime}ms - ${error.message}`);
+            this.logger.log('────────────────────────────────────────────────────────────────────────────────');
+
+            // Add error log to admin service (only for app requests)
+            if (isAppRequest) {
+              this.adminService.addLog({
+                level: 'ERROR',
+                message: `${method} ${url} - ${statusCode} - ${responseTime}ms - ${error.message}`,
+                context: 'HTTP_ERROR',
+                method,
+                url,
+                statusCode,
+                responseTime,
+                userAgent,
+              });
+            }
+          },
+        }),
+      );
     }
 
-    const request = context.switchToHttp().getRequest<Request>();
-    const response = context.switchToHttp().getResponse<Response>();
-    const startTime = Date.now();
+    return next.handle();
+  }
 
-    const { method, url, headers, body, query } = request;
-    const userAgent = headers['user-agent'] || '';
+  /**
+   * Determines if a request is a user-initiated app request (not admin panel)
+   */
+  private isAppRequest(url: string): boolean {
+    // Include only user-facing app endpoints
+    const appEndpoints = [
+      '/auth/',
+      '/api/user/',
+      '/api/explore/',
+      '/api/cookbook',
+      '/api/locations/',
+      '/api/daily-recipes/',
+      '/recipes/',
+    ];
 
-    // Log incoming request
-    this.logger.log(`🔵 ${method} ${url}`);
-    
-    if (Object.keys(query).length > 0) {
-      this.logger.log(`📋 Query: ${JSON.stringify(query)}`);
+    // Exclude admin panel and internal endpoints
+    const excludeEndpoints = [
+      '/admin/',
+      '/api/docs',
+      '/favicon.ico',
+      '/', // Root admin dashboard
+    ];
+
+    // Check if URL should be excluded
+    for (const excludePattern of excludeEndpoints) {
+      if (url.startsWith(excludePattern)) {
+        return false;
+      }
     }
-    
-    if (body && Object.keys(body).length > 0) {
-      this.logger.log(`📦 Body: ${JSON.stringify(body, null, 2)}`);
-    }
-    
-    this.logger.log(`🌐 User-Agent: ${userAgent}`);
 
-    return next.handle().pipe(
-      tap({
-        next: (responseBody) => {
-          const duration = Date.now() - startTime;
-          const { statusCode } = response;
-          
-          // Log response
-          this.logger.log(`🟢 ${method} ${url} - ${statusCode} - ${duration}ms`);
-          
-          if (responseBody) {
-            // Truncate long responses for readability
-            const bodyStr = JSON.stringify(responseBody, null, 2);
-            const truncatedBody = bodyStr.length > 500 
-              ? bodyStr.substring(0, 500) + '\n... (truncated)'
-              : bodyStr;
-            this.logger.log(`📤 Response: ${truncatedBody}`);
-          }
-          
-          this.logger.log('─'.repeat(80));
-        },
-        error: (error) => {
-          const duration = Date.now() - startTime;
-          this.logger.error(`🔴 ${method} ${url} - ERROR - ${duration}ms`);
-          this.logger.error(`❌ Error: ${error.message}`);
-          this.logger.log('─'.repeat(80));
-        },
-      }),
-    );
+    // Check if URL matches app endpoints
+    for (const appPattern of appEndpoints) {
+      if (url.startsWith(appPattern)) {
+        return true;
+      }
+    }
+
+    // Default to false for unknown endpoints
+    return false;
   }
 } 

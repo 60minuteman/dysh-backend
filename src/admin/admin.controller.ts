@@ -307,6 +307,111 @@ export class AdminController {
 
         .metric-change.positive { color: #4ade80; }
         .metric-change.negative { color: #ef4444; }
+
+        /* Logs Styles */
+        .logs-container {
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.5rem;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .logs-header {
+            margin-bottom: 1rem;
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        .log-entry {
+            padding: 0.75rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-entry:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .log-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .log-icon {
+            font-size: 0.9rem;
+        }
+
+        .log-timestamp {
+            color: #888;
+            font-size: 0.8rem;
+            min-width: 150px;
+        }
+
+        .log-context {
+            color: #ff6b35;
+            font-size: 0.8rem;
+            font-weight: 500;
+            padding: 0.125rem 0.5rem;
+            border-radius: 0.25rem;
+            background: rgba(255, 107, 53, 0.1);
+        }
+
+        .log-message {
+            color: #e0e0e0;
+            margin-left: 1.5rem;
+            word-break: break-word;
+        }
+
+        .log-details {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-top: 0.25rem;
+            margin-left: 1.5rem;
+            font-size: 0.8rem;
+        }
+
+        .log-method {
+            color: #10b981;
+            font-weight: 500;
+            padding: 0.125rem 0.375rem;
+            border-radius: 0.25rem;
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .log-url {
+            color: #888;
+            font-family: 'DM Mono', monospace;
+        }
+
+        .log-status {
+            font-weight: 500;
+            padding: 0.125rem 0.375rem;
+            border-radius: 0.25rem;
+        }
+
+        .log-time {
+            color: #f59e0b;
+            font-size: 0.75rem;
+        }
+
+        .log-level-error {
+            border-left: 3px solid #ef4444;
+            background: rgba(239, 68, 68, 0.05);
+        }
+
+        .button.active {
+            background: #10b981;
+            color: #000;
+        }
     </style>
 </head>
 <body>
@@ -322,6 +427,8 @@ export class AdminController {
             <div class="tab" onclick="showTab('users')">Users</div>
             <div class="tab" onclick="showTab('recipes')">Recipes</div>
             <div class="tab" onclick="showTab('api')">API Testing</div>
+            <div class="tab" onclick="showTab('logs')">Logs</div>
+            <div class="tab" onclick="showTab('explore')">Explore</div>
             <div class="tab" onclick="showTab('system')">System</div>
         </div>
 
@@ -457,6 +564,56 @@ export class AdminController {
                     <button class="button secondary" onclick="fillEndpoint('GET', '/recipes/daily')">Get Daily Recipes</button>
                     <button class="button secondary" onclick="fillEndpoint('POST', '/recipes/generate')">Generate Recipe</button>
                     <button class="button secondary" onclick="fillEndpoint('GET', '/api/docs')">API Documentation</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Tab -->
+        <div id="logs" class="tab-content">
+            <div class="card">
+                <h3>📝 Server Logs</h3>
+                <div style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center;">
+                    <button class="button" onclick="loadLogs()">🔄 Refresh Logs</button>
+                    <button class="button secondary" onclick="clearLogs()">🗑️ Clear Logs</button>
+                    <button class="button secondary" onclick="toggleAutoRefresh()">⏱️ Auto Refresh: OFF</button>
+                    <input type="text" class="input" id="log-search" placeholder="🔍 Search logs..." style="max-width: 300px; margin: 0;" oninput="filterLogs()">
+                </div>
+                <div id="logs-content">
+                    <p style="color: #888; text-align: center; padding: 2rem;">Click "Refresh Logs" to load server logs</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Explore Tab -->
+        <div id="explore" class="tab-content">
+            <div class="grid">
+                <div class="card">
+                    <h3>📊 Explore Recipe Statistics</h3>
+                    <button class="button" onclick="loadExploreStats()">🔄 Load Stats</button>
+                    <div id="explore-stats-content">
+                        <p style="color: #888; text-align: center; padding: 2rem;">Click "Load Stats" to see current recipe counts</p>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>🎯 Generate New Recipes</h3>
+                    <select class="input" id="recipe-category">
+                        <option value="chefs-pick">Chef's Pick</option>
+                        <option value="thirty-min-meals">30-Min Meals</option>
+                        <option value="healthy-light">Healthy & Light</option>
+                        <option value="comfort-food">Comfort Food</option>
+                        <option value="one-pot-meals">One Pot Meals</option>
+                        <option value="occasion">Special Occasion</option>
+                    </select>
+                    <select class="input" id="meal-type">
+                        <option value="">Any Meal Type</option>
+                        <option value="BREAKFAST">Breakfast</option>
+                        <option value="LUNCH">Lunch</option>
+                        <option value="DINNER">Dinner</option>
+                    </select>
+                    <input type="number" class="input" id="recipe-count" placeholder="Number of recipes" value="5" min="1" max="20">
+                    <input type="text" class="input" id="recipe-countries" placeholder="Countries (comma separated, optional)" style="margin-bottom: 1rem;">
+                    <button class="button" onclick="generateRecipes()">🚀 Generate Recipes</button>
+                    <div id="generate-result" class="response-box" style="display: none;"></div>
                 </div>
             </div>
         </div>
@@ -1022,6 +1179,212 @@ Status: \${apiResult.status} \${apiResult.ok ? '✅' : '❌'}
 \${JSON.stringify(apiResult.data, null, 2)}\`;
         }
 
+        // Logs management
+        let autoRefreshInterval = null;
+        let autoRefreshEnabled = false;
+        let allLogs = []; // Store all logs for filtering
+
+        async function loadLogs() {
+            const logsContent = document.getElementById('logs-content');
+            logsContent.innerHTML = '<div class="loading"></div> Loading logs...';
+            
+            const result = await apiCall('GET', '/admin/logs?limit=50');
+            if (result.ok) {
+                const { logs, total, maxLogs } = result.data;
+                allLogs = logs; // Store logs for filtering
+                
+                if (logs.length === 0) {
+                    logsContent.innerHTML = '<p style="color: #888; text-align: center; padding: 2rem;">No user app requests logged yet</p>';
+                    return;
+                }
+
+                displayLogs(logs, total, maxLogs);
+            } else {
+                logsContent.innerHTML = \`<div class="status-error">Error: \${result.data.message || 'Failed to load logs'}</div>\`;
+            }
+        }
+
+        function displayLogs(logs, total, maxLogs) {
+            const logsContent = document.getElementById('logs-content');
+            
+            if (logs.length === 0) {
+                logsContent.innerHTML = '<p style="color: #888; text-align: center; padding: 2rem;">No logs match your search</p>';
+                return;
+            }
+
+            const logsHtml = logs.map(log => {
+                    const timestamp = new Date(log.timestamp).toLocaleString();
+                    let levelClass = 'log-level-log';
+                    let levelIcon = '📋';
+                    
+                    if (log.level === 'ERROR') {
+                        levelClass = 'log-level-error';
+                        levelIcon = '🔴';
+                    } else if (log.context === 'HTTP_RESPONSE') {
+                        levelIcon = '🟢';
+                    } else if (log.context === 'HTTP_REQUEST') {
+                        levelIcon = '🔵';
+                    }
+
+                    return \`
+                        <div class="log-entry \${levelClass}">
+                            <div class="log-header">
+                                <span class="log-icon">\${levelIcon}</span>
+                                <span class="log-timestamp">\${timestamp}</span>
+                                <span class="log-context">\${log.context || log.level}</span>
+                            </div>
+                            <div class="log-message">\${log.message}</div>
+                            \${log.method && log.url ? \`<div class="log-details">
+                                <span class="log-method">\${log.method}</span>
+                                <span class="log-url">\${log.url}</span>
+                                \${log.statusCode ? \`<span class="log-status status-\${log.statusCode < 400 ? 'good' : 'error'}">\${log.statusCode}</span>\` : ''}
+                                \${log.responseTime ? \`<span class="log-time">\${log.responseTime}ms</span>\` : ''}
+                            </div>\` : ''}
+                        </div>
+                    \`;
+                }).join('');
+
+            logsContent.innerHTML = \`
+                <div class="logs-header">
+                    <p>Showing \${logs.length} of \${total} user app requests (max: \${maxLogs})</p>
+                </div>
+                <div class="logs-container">
+                    \${logsHtml}
+                </div>
+            \`;
+        }
+
+        async function clearLogs() {
+            if (!confirm('Are you sure you want to clear all logs?')) {
+                return;
+            }
+
+            const result = await apiCall('POST', '/admin/logs/clear');
+            if (result.ok) {
+                document.getElementById('logs-content').innerHTML = '<p style="color: #888; text-align: center; padding: 2rem;">Logs cleared successfully</p>';
+            } else {
+                alert('Failed to clear logs');
+            }
+        }
+
+        function toggleAutoRefresh() {
+            const button = event.target;
+            
+            if (autoRefreshEnabled) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+                autoRefreshEnabled = false;
+                button.textContent = '⏱️ Auto Refresh: OFF';
+                button.classList.remove('active');
+            } else {
+                autoRefreshInterval = setInterval(loadLogs, 5000); // Refresh every 5 seconds
+                autoRefreshEnabled = true;
+                button.textContent = '⏱️ Auto Refresh: ON';
+                button.classList.add('active');
+                loadLogs(); // Load immediately
+            }
+        }
+
+        function filterLogs() {
+            const searchTerm = document.getElementById('log-search').value.toLowerCase();
+            
+            if (!searchTerm) {
+                // Show all logs if search is empty
+                displayLogs(allLogs, allLogs.length, allLogs.length);
+                return;
+            }
+
+            // Filter logs based on search term
+            const filteredLogs = allLogs.filter(log => {
+                return (
+                    log.message.toLowerCase().includes(searchTerm) ||
+                    (log.method && log.method.toLowerCase().includes(searchTerm)) ||
+                    (log.url && log.url.toLowerCase().includes(searchTerm)) ||
+                    (log.context && log.context.toLowerCase().includes(searchTerm)) ||
+                    (log.userAgent && log.userAgent.toLowerCase().includes(searchTerm)) ||
+                    (log.statusCode && log.statusCode.toString().includes(searchTerm))
+                );
+            });
+
+            displayLogs(filteredLogs, filteredLogs.length, allLogs.length);
+        }
+
+        // Explore Management
+        async function loadExploreStats() {
+            const exploreStatsContent = document.getElementById('explore-stats-content');
+            exploreStatsContent.innerHTML = '<div class="loading"></div> Loading explore recipe statistics...';
+            
+            const result = await apiCall('GET', '/admin/explore/stats');
+            if (result.ok) {
+                const stats = result.data;
+                exploreStatsContent.innerHTML = \`
+                    <div class="stat">
+                        <span class="stat-label">Chef's Pick:</span>
+                        <span class="stat-value">\${stats['chefs-pick']}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">30-Min Meals:</span>
+                        <span class="stat-value">\${stats['thirty-min-meals']}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Healthy & Light:</span>
+                        <span class="stat-value">\${stats['healthy-light']}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Comfort Food:</span>
+                        <span class="stat-value">\${stats['comfort-food']}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">One Pot Meals:</span>
+                        <span class="stat-value">\${stats['one-pot-meals']}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Special Occasion:</span>
+                        <span class="stat-value">\${stats.occasion}</span>
+                    </div>
+                    <div class="stat" style="border-top: 1px solid rgba(255,255,255,0.1); margin-top: 1rem; padding-top: 1rem;">
+                        <span class="stat-label">Total Recipes:</span>
+                        <span class="stat-value status-good">\${stats.total}</span>
+                    </div>
+                \`;
+            } else {
+                exploreStatsContent.innerHTML = \`<div class="status-error">Error: \${result.data.message || 'Failed to load stats'}</div>\`;
+            }
+        }
+
+        async function generateRecipes() {
+            const category = document.getElementById('recipe-category').value;
+            const mealType = document.getElementById('meal-type').value;
+            const count = document.getElementById('recipe-count').value;
+            const countries = document.getElementById('recipe-countries').value;
+            const result = document.getElementById('generate-result');
+            
+            result.style.display = 'block';
+            result.innerHTML = '<div class="loading"></div> Generating recipes... This may take 30-60 seconds.';
+            
+            const params = new URLSearchParams({
+                category,
+                count,
+            });
+            
+            if (mealType) params.append('mealType', mealType);
+            if (countries.trim()) params.append('countries', countries.trim());
+
+            const apiResult = await apiCall('POST', \`/admin/explore/generate?\${params.toString()}\`);
+            
+            if (apiResult.ok) {
+                result.innerHTML = \`✅ \${apiResult.data.message}
+
+Generated Recipes:
+\${apiResult.data.recipes.map(recipe => \`• \${recipe.title} (\${recipe.country})\`).join('\\n')}\`;
+                
+                // Refresh stats after successful generation
+                loadExploreStats();
+            } else {
+                result.innerHTML = \`❌ Failed to generate recipes: \${apiResult.data.message || 'Unknown error'}\`;
+            }
+        }
+
         // System info
         async function getSystemInfo() {
             const systemInfo = document.getElementById('system-info');
@@ -1087,5 +1450,44 @@ Status: \${apiResult.status} \${apiResult.ok ? '✅' : '❌'}
   @ApiResponse({ status: 200, description: 'Recipes retrieved successfully' })
   async getRecipes(@Query('page') page = '1', @Query('limit') limit = '10') {
     return this.adminService.getRecipes(parseInt(page), parseInt(limit));
+  }
+
+  @Get('admin/logs')
+  @ApiOperation({ summary: 'Get server logs' })
+  @ApiResponse({ status: 200, description: 'Server logs retrieved successfully' })
+  async getLogs(@Query('limit') limit = '100') {
+    return this.adminService.getLogs(parseInt(limit));
+  }
+
+  @Post('admin/logs/clear')
+  @ApiOperation({ summary: 'Clear server logs' })
+  @ApiResponse({ status: 200, description: 'Server logs cleared successfully' })
+  async clearLogs() {
+    return this.adminService.clearLogs();
+  }
+
+  @Post('admin/explore/generate')
+  @ApiOperation({ summary: 'Generate new explore recipes' })
+  @ApiResponse({ status: 200, description: 'Explore recipes generated successfully' })
+  async generateExploreRecipes(
+    @Query('category') category: string,
+    @Query('count') count = '5',
+    @Query('countries') countries?: string,
+    @Query('mealType') mealType?: 'BREAKFAST' | 'LUNCH' | 'DINNER'
+  ) {
+    const countryArray = countries ? countries.split(',').map(c => c.trim()) : undefined;
+    return this.adminService.generateExploreRecipes(
+      category,
+      parseInt(count),
+      countryArray,
+      mealType
+    );
+  }
+
+  @Get('admin/explore/stats')
+  @ApiOperation({ summary: 'Get explore recipe statistics' })
+  @ApiResponse({ status: 200, description: 'Explore recipe stats retrieved successfully' })
+  async getExploreStats() {
+    return this.adminService.getExploreRecipeStats();
   }
 } 
