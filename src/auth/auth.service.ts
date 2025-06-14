@@ -335,4 +335,49 @@ export class AuthService {
       expiresIn: 15 * 60, // 15 minutes in seconds
     };
   }
+
+  async generateTestToken() {
+    try {
+      // Check if a test user exists, create if not
+      let testUser = await this.prisma.user.findUnique({
+        where: { email: 'testuser@example.com' }
+      });
+
+      if (!testUser) {
+        testUser = await this.prisma.user.create({
+          data: {
+            email: 'testuser@example.com',
+            emailVerified: true,
+            firstName: 'Test',
+            lastName: 'User',
+            fullName: 'Test User',
+            isPro: true,
+            profile: {
+              create: {
+                dietaryPreference: 'NONE',
+                ingredients: ['chicken', 'rice', 'vegetables'],
+                preferredServings: 4,
+                onboardingVersion: '1.0',
+                isOnboardingComplete: true,
+              }
+            }
+          }
+        });
+      }
+
+      // Generate tokens
+      const tokens = await this.generateTokens(testUser.id, testUser.email!);
+
+      return {
+        accessToken: tokens.accessToken,
+        message: 'Test token generated successfully',
+        userId: testUser.id,
+        email: testUser.email,
+        expiresIn: '15m'
+      };
+    } catch (error) {
+      console.error('Error generating test token:', error);
+      throw new Error('Failed to generate test token');
+    }
+  }
 } 

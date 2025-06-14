@@ -181,4 +181,32 @@ export class AuthController {
   async getCurrentUser(@Request() req: any) {
     return this.authService.getCurrentUser(req.user.id);
   }
+
+  @Post('test-token')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Generate test token (Development only)',
+    description: 'Generate a test JWT token for development and testing purposes.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Test token generated successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        accessToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
+        message: { type: 'string', example: 'Test token generated' },
+        userId: { type: 'string', example: 'test-user-id' },
+        expiresIn: { type: 'string', example: '24h' },
+      },
+    },
+  })
+  async generateTestToken() {
+    // Only allow in development/staging
+    if (process.env.NODE_ENV === 'production') {
+      return { error: 'Test tokens not available in production' };
+    }
+    
+    return this.authService.generateTestToken();
+  }
 } 
