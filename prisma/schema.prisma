@@ -264,3 +264,16 @@ model DailyRecipe {
   @@unique([userId, locationId, category, generatedDate])
   @@map("daily_recipes")
 }
+
+// OTP verification for email authentication
+model OtpVerification {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  otp       String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  
+  createdAt DateTime @default(now())
+  
+  @@map("otp_verifications")
+}

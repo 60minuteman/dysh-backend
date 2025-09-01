@@ -13,6 +13,8 @@ import { AppleAuthDto } from './dto/apple-auth.dto';
 import { GoogleAuthDto } from './dto/google-auth.dto';
 import { AuthResponseDto, AuthTokensDto } from './dto/auth-response.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
+import { OtpService } from './otp.service';
+import { CreateAccountDto } from './dto/otp-auth.dto';
 
 @Injectable()
 export class AuthService {
@@ -22,6 +24,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private otpService: OtpService,
   ) {
     // Initialize Google OAuth client
     this.googleClient = new OAuth2Client(
@@ -379,5 +382,148 @@ export class AuthService {
       console.error('Error generating test token:', error);
       throw new Error('Failed to generate test token');
     }
+  }
+
+  // OTP Authentication Methods
+
+  /**
+   * Send OTP to user email
+   */
+  async sendOtp(email: string) {
+    const { otp, userExists } = await this.otpService.sendOtp(email);
+    
+    return {
+      message: 'OTP sent successfully',
+      email,
+      userExists,
+    };
+  }
+
+  /**
+   * Verify OTP and return user status
+   */
+  async verifyOtp(email: string, otp: string) {
+    const { userExists, tempToken } = await this.otpService.verifyOtp(email, otp);
+    
+    if (userExists) {
+      // User exists, log them in
+      const user = await this.prisma.user.findUnique({
+        where: { email },
+        include: { profile: true },
+      });
+
+      if (!user) {
+        throw new BadRequestException('User not found');
+      }
+
+      // Update last login
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      });
+
+      // Generate tokens
+      const tokens = await this.generateTokens(user.id, user.email!);
+
+      // Update refresh token in database
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { refreshToken: tokens.refreshToken },
+      });
+
+      return {
+        message: 'OTP verified successfully. User logged in.',
+        email,
+        userExists: true,
+        tokens,
+        user: {
+          id: user.id,
+          email: user.email!,
+          fullName: user.fullName,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          hasCompletedOnboarding: user.profile?.isOnboardingComplete || false,
+          lastLoginAt: user.lastLoginAt?.toISOString() || new Date().toISOString(),
+        },
+      };
+    } else {
+      // User doesn't exist, return temp token for account creation
+      return {
+        message: 'OTP verified successfully. Please provide your name to create account.',
+        email,
+        userExists: false,
+        tempToken,
+      };
+    }
+  }
+
+  /**
+   * Create new user account after OTP verification
+   */
+  async createAccountWithOtp(createAccountDto: CreateAccountDto, tempToken: string) {
+    // Verify temp token
+    const { email, isValid } = await this.otpService.verifyTempToken(tempToken);
+    
+    if (!isValid || email !== createAccountDto.email) {
+      throw new BadRequestException('Invalid or expired verification token');
+    }
+
+    // Check if user already exists
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: createAccountDto.email },
+    });
+
+    if (existingUser) {
+      throw new ConflictException('User already exists with this email');
+    }
+
+    // Generate full name if not provided
+    const fullName = createAccountDto.fullName || 
+      `${createAccountDto.firstName} ${createAccountDto.lastName}`.trim();
+
+    // Create new user
+    const user = await this.prisma.user.create({
+      data: {
+        email: createAccountDto.email,
+        emailVerified: true, // OTP verification confirms email
+        firstName: createAccountDto.firstName,
+        lastName: createAccountDto.lastName,
+        fullName,
+        lastLoginAt: new Date(),
+      },
+      include: { profile: true },
+    });
+
+    console.log(`📧 New OTP user created: ${user.id} (${email}) - Name: ${fullName}`);
+
+    // Generate tokens
+    const tokens = await this.generateTokens(user.id, user.email!);
+
+    // Update refresh token in database
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { refreshToken: tokens.refreshToken },
+    });
+
+    return {
+      message: 'Account created successfully',
+      tokens,
+      user: {
+        id: user.id,
+        email: user.email!,
+        fullName: user.fullName,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        hasCompletedOnboarding: user.profile?.isOnboardingComplete || false,
+        lastLoginAt: user.lastLoginAt?.toISOString() || new Date().toISOString(),
+      },
+    };
+  }
+
+  /**
+   * Test email service connection
+   */
+  async testEmailService() {
+    return this.otpService.testEmailService();
   }
 } 
