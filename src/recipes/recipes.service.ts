@@ -6,6 +6,7 @@ import { RecipeListResponseDto } from './dto/recipe-list-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CloudinaryService } from '../common/services/cloudinary.service';
 import { GeminiService } from '../common/services/gemini.service';
+import { SubscriptionService } from '../subscription/subscription.service';
 import { RecipeCategory } from '@prisma/client';
 import axios from 'axios';
 
@@ -22,6 +23,7 @@ export class RecipesService {
     private prisma: PrismaService,
     private cloudinaryService: CloudinaryService,
     private geminiService: GeminiService,
+    private subscriptionService: SubscriptionService,
   ) {
     this.geminiApiKey = this.configService.get<string>('GEMINI_API_KEY');
     this.deepseekApiKey = this.configService.get<string>('DEEPSEEK_API_KEY');
@@ -37,6 +39,19 @@ export class RecipesService {
 
   async generatePersonalizedRecipe(generateRecipeDto: GenerateRecipeDto, userId: string): Promise<RecipeResponseDto> {
     const { ingredients, country } = generateRecipeDto;
+
+    // Check if user can generate recipes (free recipe or active subscription)
+    const canGenerate = await this.subscriptionService.canGenerateRecipe(userId);
+    if (!canGenerate.canGenerate) {
+      throw new HttpException(
+        {
+          message: canGenerate.reason || 'Recipe generation limit reached',
+          code: 'RECIPE_LIMIT_EXCEEDED',
+          canGenerate: false,
+        },
+        HttpStatus.FORBIDDEN
+      );
+    }
 
     // Fetch user profile with preferences and location
     const user = await this.prisma.user.findUnique({
@@ -74,6 +89,9 @@ export class RecipesService {
         const mealsWithImages = await this.generateImagesForMeals(meals);
         console.log('✅ Image generation completed');
         
+        // Track recipe generation
+        await this.trackRecipeGeneration(userId);
+
         return {
           meals: mealsWithImages,
           location: cuisineLocation,
@@ -101,6 +119,9 @@ export class RecipesService {
           console.log('🎨 Generating images for each meal with Gemini...');
           const mealsWithImages = await this.generateImagesForMeals(meals);
           console.log('✅ Image generation completed');
+          // Track recipe generation
+          await this.trackRecipeGeneration(userId);
+
           return {
             meals: mealsWithImages,
             location: cuisineLocation,
@@ -113,6 +134,9 @@ export class RecipesService {
             image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjBmMGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIE5vdCBBdmFpbGFibGU8L3RleHQ+PC9zdmc+'
           }));
           
+          // Track recipe generation
+          await this.trackRecipeGeneration(userId);
+
           return {
             meals: mealsWithPlaceholders,
             location: cuisineLocation,
@@ -757,7 +781,167 @@ Requirements:
     return `https://dummyimage.com/400x400/${color.substring(1)}/ffffff&text=${emoji}%20${encodedTitle}`;
   }
 
-  private async generateRecipesForCategory(category: RecipeCategory, count: number, userId: string): Promise<any[]> {
+  /**
+   * Public method to generate recipes for a specific user and category
+   * Validates user exists and generates recipes with AI images
+   */
+  async generateRecipesForUserCategory(category: RecipeCategory, count: number, userId: string): Promise<any[]> {
+    // Validate user exists
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true }
+    });
+
+    if (!user) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    console.log(`🎯 Generating ${count} ${category} recipes for user ${userId} (${user.email})`);
+
+    // Get user profile for personalization
+    const userProfile = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        profile: {
+          include: {
+            location: true,
+          },
+        },
+      },
+    });
+
+    // Determine cuisine based on user location or default
+    const cuisine = userProfile?.profile?.location?.country || 'International';
+
+    // Build prompt for the specific category
+    const categoryPrompts = {
+      [RecipeCategory.BREAKFAST]: 'Create breakfast recipes that are energizing and perfect to start the day',
+      [RecipeCategory.BREAKFAST_LOW_CARB]: 'Create low-carb breakfast recipes that are keto-friendly and protein-rich',
+      [RecipeCategory.BREAKFAST_HIGH_PROTEIN]: 'Create high-protein breakfast recipes for muscle building and satiety',
+      [RecipeCategory.LUNCH]: 'Create satisfying lunch recipes that are balanced and nutritious',
+      [RecipeCategory.LUNCH_LOW_CARB]: 'Create low-carb lunch recipes that are filling and healthy',
+      [RecipeCategory.LUNCH_HIGH_PROTEIN]: 'Create high-protein lunch recipes for active lifestyles',
+      [RecipeCategory.DINNER]: 'Create delicious dinner recipes that are hearty and comforting',
+      [RecipeCategory.DINNER_LOW_CARB]: 'Create low-carb dinner recipes that are satisfying and healthy',
+      [RecipeCategory.DINNER_HIGH_PROTEIN]: 'Create high-protein dinner recipes for muscle recovery',
+      [RecipeCategory.LOW_CARB]: 'Create low-carb recipes suitable for any meal',
+      [RecipeCategory.HIGH_PROTEIN]: 'Create high-protein recipes for fitness enthusiasts',
+    };
+
+    const baseConstraints = `
+- Create exactly ${count} unique recipes
+- Each recipe should be from ${cuisine} cuisine style
+- Use realistic cooking times (15-60 minutes)
+- Use realistic calorie counts (200-800 kcal)
+- Use ratings between 4.0-5.0
+- Include 5-8 ingredients with specific measurements per recipe
+- Include 4-8 detailed cooking instructions per recipe
+- Include 2-4 professional cooking tips per recipe
+- Make each recipe distinctly different from the others`;
+
+    const prompt = `
+${baseConstraints}
+${categoryPrompts[category]}
+
+CRITICAL: Respond ONLY with valid JSON in this exact format:
+
+{
+  "recipes": [
+    {
+      "title": "Recipe Name",
+      "duration": "25 min",
+      "calories": "350 kcal", 
+      "rating": "4.7",
+      "ingredients": [
+        "2 cups specific ingredient with measurement",
+        "1 tbsp another ingredient"
+      ],
+      "instructions": [
+        "Step 1: Detailed cooking instruction",
+        "Step 2: Another detailed step"
+      ],
+      "proTips": [
+        "Professional tip for better results",
+        "Traditional technique or secret"
+      ]
+    }
+  ]
+}
+
+Create exactly ${count} recipes.`;
+
+    try {
+      let parsedResponse: any;
+      
+      // Try Gemini first
+      if (this.geminiApiKey) {
+        parsedResponse = await this.geminiService.generateRecipes(prompt);
+      } else if (this.deepseekApiKey) {
+        const aiResponse = await this.generateWithDeepSeek(prompt);
+        parsedResponse = this.geminiService.parseJsonFromResponse(aiResponse);
+      } else {
+        throw new Error('No AI provider available');
+      }
+
+      const aiRecipes = parsedResponse.recipes || [];
+
+      // Save recipes to database with generated images
+      const savedRecipes = [];
+      for (const aiRecipe of aiRecipes) {
+        try {
+          // Generate AI image for the recipe
+          let imageUrl = 'https://via.placeholder.com/400x400?text=Recipe+Image';
+          
+          try {
+            imageUrl = await this.cloudinaryService.generateRecipeImage(
+              aiRecipe.title, 
+              aiRecipe.ingredients, 
+              cuisine
+            );
+            console.log(`✅ Generated AI image for: ${aiRecipe.title}`);
+          } catch (imageError) {
+            console.log(`❌ Failed to generate image for ${aiRecipe.title}:`, imageError.message);
+            // Keep the default placeholder
+          }
+
+          const savedRecipe = await this.prisma.recipe.create({
+            data: {
+              title: aiRecipe.title,
+              duration: aiRecipe.duration,
+              calories: aiRecipe.calories,
+              rating: aiRecipe.rating,
+              imageUrl,
+              category,
+              country: cuisine,
+              ingredients: aiRecipe.ingredients || [],
+              instructions: aiRecipe.instructions || [],
+              proTips: aiRecipe.proTips || [],
+              generationCount: 1, // Track generation for trending
+            },
+          });
+
+          savedRecipes.push(savedRecipe);
+        } catch (error) {
+          console.error(`Failed to save recipe ${aiRecipe.title}:`, error);
+        }
+      }
+
+      console.log(`✅ Generated ${savedRecipes.length} ${category} recipes for user ${userId}`);
+      return savedRecipes;
+    } catch (error) {
+      console.error('Failed to generate recipes for category:', error);
+      throw new HttpException(
+        'Failed to generate recipes',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  /**
+   * Public method for admin/system recipe generation (no user validation)
+   * Used for bulk generation and system operations
+   */
+  async generateRecipesForCategory(category: RecipeCategory, count: number, userId: string): Promise<any[]> {
     // Get user profile for personalization
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -872,7 +1056,11 @@ Requirements:
           let imageUrl = 'https://via.placeholder.com/400x400?text=Recipe+Image';
           
           try {
-            imageUrl = await this.cloudinaryService.generateRecipeImage(aiRecipe.title);
+            imageUrl = await this.cloudinaryService.generateRecipeImage(
+              aiRecipe.title, 
+              aiRecipe.ingredients, 
+              aiRecipe.country || 'International'
+            );
           } catch (imageError) {
             console.log(`Failed to generate image for ${aiRecipe.title}:`, imageError.message);
             // Keep the default placeholder
@@ -906,6 +1094,37 @@ Requirements:
         'Failed to generate recipes',
         HttpStatus.INTERNAL_SERVER_ERROR
       );
+    }
+  }
+
+  /**
+   * Track recipe generation for user limits
+   */
+  private async trackRecipeGeneration(userId: string): Promise<void> {
+    try {
+      // Check if user can generate recipes (this handles the subscription logic)
+      const canGenerate = await this.subscriptionService.canGenerateRecipe(userId);
+      
+      if (canGenerate.canGenerate) {
+        // If user hasn't used their free recipe yet, mark it as used
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true }
+        });
+
+        if (user) {
+          // Try to use free recipe first, if that fails, increment count
+          try {
+            await this.subscriptionService.useFreeRecipe(userId);
+          } catch (error) {
+            // If free recipe already used, just increment the count
+            await this.subscriptionService.incrementRecipeCount(userId);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to track recipe generation:', error);
+      // Don't throw error here as it shouldn't break recipe generation
     }
   }
 }

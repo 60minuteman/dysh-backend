@@ -102,46 +102,42 @@ export class DailyRecipeService {
     // Generate 5 recipes for each category
     for (const category of this.DAILY_CATEGORIES) {
       try {
-        // Generate recipes using the existing recipes service with location-based cuisine
-        const recipes = await this.recipesService.generateRecipes(
+        // Generate recipes using the new public method with user validation
+        const savedRecipes = await this.recipesService.generateRecipesForUserCategory(
           category, 
           5, 
-          userProfile?.dietaryPreference,
-          location.country // Pass country for location-based cuisine
+          userId // Use actual user ID for proper recipe attachment
         );
 
-        // Save each recipe and create daily recipe records
-        for (const recipeData of recipes) {
-          // Save the recipe to the database
-          const savedRecipe = await this.prisma.recipe.create({
-            data: {
-              title: recipeData.title,
-              duration: recipeData.duration,
-              calories: recipeData.calories,
-              rating: recipeData.rating,
-              imageUrl: recipeData.imageUrl,
-              category: category,
-              ingredients: recipeData.ingredients,
-              instructions: recipeData.instructions,
-              proTips: recipeData.proTips,
-              country: location.country,
-              generationCount: 1,
-            }
-          });
-
-          // Create daily recipe record
-          await this.prisma.dailyRecipe.create({
-            data: {
+        // Create daily recipe records for each generated recipe
+        for (const savedRecipe of savedRecipes) {
+          // Check if daily recipe already exists to avoid unique constraint error
+          const existingDailyRecipe = await this.prisma.dailyRecipe.findFirst({
+            where: {
               userId,
               locationId,
-              recipeId: savedRecipe.id,
               category,
-              generatedAt: userLocalTime,
               generatedDate: today,
             }
           });
 
-          recipesGenerated++;
+          if (!existingDailyRecipe) {
+            // Create daily recipe record
+            await this.prisma.dailyRecipe.create({
+              data: {
+                userId,
+                locationId,
+                recipeId: savedRecipe.id,
+                category,
+                generatedAt: userLocalTime,
+                generatedDate: today,
+              }
+            });
+
+            recipesGenerated++;
+          } else {
+            this.logger.log(`Daily recipe already exists for ${category} on ${today}, skipping creation`);
+          }
         }
 
         this.logger.log(`Generated 5 ${category} recipes for user ${userId}`);

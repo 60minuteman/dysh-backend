@@ -8,18 +8,20 @@ import { OtpService } from './otp.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { PrismaModule } from '../prisma/prisma.module';
 import { CommonModule } from '../common/common.module';
+import { SubscriptionModule } from '../subscription/subscription.module';
 
 @Module({
   imports: [
     PrismaModule,
     CommonModule,
+    SubscriptionModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET') || 'dysh-backend-secret-key',
         signOptions: {
-          expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '1h',
+          // No expiration - tokens will not expire
         },
       }),
       inject: [ConfigService],

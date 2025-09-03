@@ -15,6 +15,7 @@ import { AuthResponseDto, AuthTokensDto } from './dto/auth-response.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
 import { OtpService } from './otp.service';
 import { CreateAccountDto } from './dto/otp-auth.dto';
+import { SubscriptionService } from '../subscription/subscription.service';
 
 @Injectable()
 export class AuthService {
@@ -25,6 +26,7 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private otpService: OtpService,
+    private subscriptionService: SubscriptionService,
   ) {
     // Initialize Google OAuth client
     this.googleClient = new OAuth2Client(
@@ -128,6 +130,9 @@ export class AuthService {
         data: { refreshToken: tokens.refreshToken },
       });
 
+      // Get user status
+      const userStatus = await this.getUserStatus(user.id);
+
       return {
         tokens,
         user: {
@@ -138,6 +143,7 @@ export class AuthService {
           lastName: user.lastName,
           hasCompletedOnboarding: user.profile?.isOnboardingComplete || false,
           lastLoginAt: user.lastLoginAt?.toISOString() || new Date().toISOString(),
+          ...userStatus,
         },
       };
     } catch (error) {
@@ -227,6 +233,9 @@ export class AuthService {
         data: { refreshToken: tokens.refreshToken },
       });
 
+      // Get user status
+      const userStatus = await this.getUserStatus(user.id);
+
       return {
         tokens,
         user: {
@@ -237,6 +246,7 @@ export class AuthService {
           lastName: user.lastName,
           hasCompletedOnboarding: user.profile?.isOnboardingComplete || false,
           lastLoginAt: user.lastLoginAt?.toISOString() || new Date().toISOString(),
+          ...userStatus,
         },
       };
     } catch (error) {
@@ -290,12 +300,16 @@ export class AuthService {
           },
         },
         deviceInfo: true,
+        subscription: true,
       },
     });
 
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
+
+    // Get user status
+    const userStatus = await this.getUserStatus(userId);
 
     return {
       id: user.id,
@@ -308,6 +322,37 @@ export class AuthService {
       lastLoginAt: user.lastLoginAt,
       profile: user.profile,
       deviceInfo: user.deviceInfo,
+      ...userStatus,
+    };
+  }
+
+  /**
+   * Get user status including subscription and recipe generation info
+   */
+  private async getUserStatus(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        subscription: true,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    // Check subscription status
+    const canGenerate = await this.subscriptionService.canGenerateRecipe(userId);
+    
+    return {
+      freeRecipeUsed: user.freeRecipeUsed,
+      recipeGenerationCount: user.recipeGenerationCount,
+      subscriptionStatus: {
+        hasActiveSubscription: user.subscription?.status === 'ACTIVE',
+        plan: user.subscription?.plan || null,
+        canGenerateRecipes: canGenerate.canGenerate,
+        reason: canGenerate.reason || 'Unknown',
+      },
     };
   }
 
@@ -317,17 +362,14 @@ export class AuthService {
       email,
     };
 
-    const accessTokenExpiresIn = '15m';
-    const refreshTokenExpiresIn = '7d';
-
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
         secret: this.configService.get<string>('JWT_SECRET') || 'dysh-backend-secret-key',
-        expiresIn: accessTokenExpiresIn,
+        // No expiration - tokens will not expire
       }),
       this.jwtService.signAsync(payload, {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET') || 'dysh-refresh-secret',
-        expiresIn: refreshTokenExpiresIn,
+        // No expiration - tokens will not expire
       }),
     ]);
 
@@ -335,7 +377,7 @@ export class AuthService {
       accessToken,
       refreshToken,
       tokenType: 'Bearer',
-      expiresIn: 15 * 60, // 15 minutes in seconds
+      expiresIn: 0, // No expiration
     };
   }
 
@@ -376,7 +418,7 @@ export class AuthService {
         message: 'Test token generated successfully',
         userId: testUser.id,
         email: testUser.email,
-        expiresIn: '15m'
+        expiresIn: 'never'
       };
     } catch (error) {
       console.error('Error generating test token:', error);
@@ -431,6 +473,9 @@ export class AuthService {
         data: { refreshToken: tokens.refreshToken },
       });
 
+      // Get user status
+      const userStatus = await this.getUserStatus(user.id);
+
       return {
         message: 'OTP verified successfully. User logged in.',
         email,
@@ -444,6 +489,7 @@ export class AuthService {
           lastName: user.lastName,
           hasCompletedOnboarding: user.profile?.isOnboardingComplete || false,
           lastLoginAt: user.lastLoginAt?.toISOString() || new Date().toISOString(),
+          ...userStatus,
         },
       };
     } else {
@@ -505,6 +551,9 @@ export class AuthService {
       data: { refreshToken: tokens.refreshToken },
     });
 
+    // Get user status
+    const userStatus = await this.getUserStatus(user.id);
+
     return {
       message: 'Account created successfully',
       tokens,
@@ -516,6 +565,7 @@ export class AuthService {
         lastName: user.lastName,
         hasCompletedOnboarding: user.profile?.isOnboardingComplete || false,
         lastLoginAt: user.lastLoginAt?.toISOString() || new Date().toISOString(),
+        ...userStatus,
       },
     };
   }

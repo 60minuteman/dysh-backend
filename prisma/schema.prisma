@@ -32,6 +32,10 @@ model User {
   // Subscription status
   isPro             Boolean      @default(false)
   
+  // Recipe generation limits
+  freeRecipeUsed    Boolean      @default(false) // Track if user used their free recipe
+  recipeGenerationCount Int      @default(0)     // Total recipes generated
+  
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   
@@ -48,6 +52,9 @@ model User {
   // New: User locations and daily generated recipes
   locations UserLocation[]
   dailyRecipes DailyRecipe[]
+  
+  // Subscription tracking
+  subscription UserSubscription?
   
   @@map("users")
 }
@@ -126,7 +133,14 @@ enum DietaryPreference {
 enum SubscriptionPlan {
   YEARLY
   MONTHLY
+  WEEKLY
   SKIP
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
 }
 
 enum Platform {
@@ -276,4 +290,29 @@ model OtpVerification {
   createdAt DateTime @default(now())
   
   @@map("otp_verifications")
+}
+
+// User subscription tracking
+model UserSubscription {
+  id                String             @id @default(cuid())
+  userId            String             @unique
+  
+  // Subscription details
+  plan              SubscriptionPlan
+  status            SubscriptionStatus @default(ACTIVE)
+  startDate         DateTime
+  endDate           DateTime
+  autoRenew         Boolean            @default(true)
+  
+  // Payment tracking
+  stripeCustomerId  String?            // Stripe customer ID
+  stripeSubscriptionId String?         // Stripe subscription ID
+  
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  
+  // Relations
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("user_subscriptions")
 }

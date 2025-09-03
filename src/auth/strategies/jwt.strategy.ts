@@ -19,7 +19,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      ignoreExpiration: false,
+      ignoreExpiration: true, // Ignore expiration since tokens don't expire
       secretOrKey: configService.get<string>('JWT_SECRET') || 'dysh-backend-secret-key',
     });
   }

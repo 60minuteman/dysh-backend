@@ -12,12 +12,16 @@ import {
 } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { ExploreService } from './explore.service';
+import { DailyRecipeService } from './daily-recipe.service';
 import { ExploreResponseDto, CookbookResponseDto } from './dto/explore-response.dto';
 
 @ApiTags('explore')
 @Controller('api/explore')
 export class ExploreController {
-  constructor(private readonly exploreService: ExploreService) {}
+  constructor(
+    private readonly exploreService: ExploreService,
+    private readonly dailyRecipeService: DailyRecipeService,
+  ) {}
 
   @Get(':category')
   @ApiOperation({
@@ -65,6 +69,45 @@ export class ExploreController {
     @Request() req: any,
     @Query('limit') limit?: number
   ): Promise<ExploreResponseDto> {
+    // Handle backward compatibility for "daily" category
+    if (category === 'daily') {
+      const userId = req.user?.id || null;
+      
+      if (!userId) {
+        // Return empty response for guest users since daily recipes require authentication
+        return {
+          recipes: [],
+          category: 'daily'
+        };
+      }
+
+      // Get daily recipes and convert to explore format
+      const dailyRecipesResponse = await this.dailyRecipeService.getDailyRecipes(userId, {
+        limit: limit || 10,
+        offset: 0
+      });
+
+      // Convert daily recipes to explore format
+      const exploreRecipes = dailyRecipesResponse.recipes.map(dailyRecipe => ({
+        id: dailyRecipe.recipe.id,
+        title: dailyRecipe.recipe.title,
+        duration: dailyRecipe.recipe.duration,
+        calories: dailyRecipe.recipe.calories,
+        rating: dailyRecipe.recipe.rating,
+        imageUrl: dailyRecipe.recipe.imageUrl,
+        country: dailyRecipe.locationCountry,
+        ingredients: dailyRecipe.recipe.ingredients,
+        instructions: dailyRecipe.recipe.instructions,
+        proTips: dailyRecipe.recipe.proTips,
+        isLiked: false, // Daily recipes are not liked by default
+      }));
+
+      return {
+        recipes: exploreRecipes,
+        category: 'daily'
+      };
+    }
+
     // Extract userId from token if present, otherwise null for guest users
     const userId = req.user?.id || null;
     return this.exploreService.getExploreRecipes(category, limit || 10, userId);

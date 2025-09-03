@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { v2 as cloudinary } from 'cloudinary';
+import { AiImageService } from './ai-image.service';
 
 @Injectable()
 export class CloudinaryService {
   private cloudinaryConfigured: boolean = false;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private aiImageService: AiImageService,
+  ) {
     const cloudName = this.configService.get('CLOUDINARY_CLOUD_NAME');
     const apiKey = this.configService.get('CLOUDINARY_API_KEY');
     const apiSecret = this.configService.get('CLOUDINARY_API_SECRET');
@@ -23,14 +27,43 @@ export class CloudinaryService {
     }
   }
 
-  async generateRecipeImage(recipeTitle: string): Promise<string> {
-    // Generate themed placeholder based on recipe content
-    const themedPlaceholderUrl = this.createThemedPlaceholder(recipeTitle);
-    console.log(`✅ Generated themed image for "${recipeTitle}": ${themedPlaceholderUrl}`);
-    return themedPlaceholderUrl;
+  async generateRecipeImage(recipeTitle: string, ingredients?: string[], cuisine?: string): Promise<string> {
+    try {
+      // Try to generate AI image first
+      const aiImageUrl = await this.aiImageService.generateRecipeImage(recipeTitle, ingredients, cuisine);
+      
+      // If Cloudinary is configured, upload the AI image to Cloudinary for better performance
+      if (this.cloudinaryConfigured && !aiImageUrl.includes('dummyimage.com')) {
+        try {
+          const fileName = this.generateFileName(recipeTitle);
+          const cloudinaryUrl = await this.uploadImageFromUrl(aiImageUrl, fileName);
+          console.log(`✅ Generated and uploaded AI image for "${recipeTitle}"`);
+          return cloudinaryUrl;
+        } catch (uploadError) {
+          console.log(`⚠️ Failed to upload AI image to Cloudinary, using direct URL: ${uploadError.message}`);
+          return aiImageUrl;
+        }
+      }
+      
+      return aiImageUrl;
+    } catch (error) {
+      console.log(`❌ AI image generation failed for "${recipeTitle}": ${error.message}`);
+      // Fallback to themed placeholder
+      const themedPlaceholderUrl = this.createThemedPlaceholder(recipeTitle, cuisine);
+      console.log(`✅ Generated themed placeholder for "${recipeTitle}": ${themedPlaceholderUrl}`);
+      return themedPlaceholderUrl;
+    }
   }
 
-  private createThemedPlaceholder(recipeTitle: string): string {
+  private generateFileName(recipeTitle: string): string {
+    return recipeTitle
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '')
+      .replace(/\s+/g, '-')
+      .substring(0, 50) + '-' + Date.now();
+  }
+
+  private createThemedPlaceholder(recipeTitle: string, cuisine?: string): string {
     // Create a food-themed placeholder with better styling
     const foodEmojis = {
       'breakfast': '🍳',
@@ -73,8 +106,10 @@ export class CloudinaryService {
 
     let color = colors.default;
     const lowerTitle = recipeTitle.toLowerCase();
+    const lowerCuisine = cuisine?.toLowerCase() || '';
+    
     for (const [key, value] of Object.entries(colors)) {
-      if (lowerTitle.includes(key)) {
+      if (lowerTitle.includes(key) || lowerCuisine.includes(key)) {
         color = value;
         break;
       }

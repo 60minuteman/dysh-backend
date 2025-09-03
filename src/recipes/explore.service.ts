@@ -242,7 +242,11 @@ Create exactly ${count} recipes, each from: ${recipesCountries.join(', ')} respe
           let imageUrl = 'https://via.placeholder.com/400x400?text=Recipe+Image';
           
           try {
-            imageUrl = await this.cloudinaryService.generateRecipeImage(aiRecipe.title);
+            imageUrl = await this.cloudinaryService.generateRecipeImage(
+              aiRecipe.title, 
+              aiRecipe.ingredients, 
+              aiRecipe.country || country
+            );
           } catch (imageError) {
             console.log(`Failed to generate image for ${aiRecipe.title}:`, imageError.message);
           }

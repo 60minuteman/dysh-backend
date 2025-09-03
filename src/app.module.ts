@@ -5,6 +5,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { RecipesModule } from './recipes/recipes.module';
+import { SubscriptionModule } from './subscription/subscription.module';
 import { CommonModule } from './common/common.module';
 import { optionalAuthMiddleware } from './common/middleware/optional-auth.middleware';
 import { AdminModule } from './admin/admin.module';
@@ -22,6 +23,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     UserModule,
     AuthModule,
     RecipesModule,
+    SubscriptionModule,
     AdminModule,
   ],
   controllers: [AppController],
